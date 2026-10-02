@@ -6,10 +6,16 @@ import { ROAD_HALF } from './world.js';
 
 const HEAD = new THREE.Vector3(0, 1.36, 0.02);
 const UP = new THREE.Vector3(0, 1, 0);
-const GRAB_R = 0.25;
+const GRAB_R = 0.2;
+const BAR_R = 0.17; // raio pra agarrar a manopla do guidão
+const BAR_MAX = 0.45; // ângulo do guidão (rad) que dá esterço total
+const GRIP_POS = { L: new THREE.Vector3(-0.44, 0.06, 0.27), R: new THREE.Vector3(0.44, 0.06, 0.27) };
+const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const _v = new THREE.Vector3();
 const _a = new THREE.Vector3();
 const _ray = new THREE.Raycaster();
+const _qa = new THREE.Quaternion();
+const _qb = new THREE.Quaternion();
 const FWD = new THREE.Vector3(0, 0, -1);
 
 function segSegDist2(p1, q1, p2, q2) {
@@ -104,6 +110,17 @@ export class Player {
       a.add(ring);
       return { anchor: a, gun: null, ring, i, def: d };
     });
+    this.barAngle = 0;
+    this.barGloves = {};
+    for (const k of ['L', 'R']) {
+      const gl = Models.freeGlove();
+      gl.position.copy(GRIP_POS[k]).add(new THREE.Vector3(0, 0.035, 0));
+      gl.rotation.set(0, 0, k === 'L' ? -Math.PI / 2 : Math.PI / 2);
+      if (k === 'L') gl.scale.x = -1;
+      gl.visible = false;
+      this.bike.bars.add(gl);
+      this.barGloves[k] = gl;
+    }
     this.hands = [0, 1].map((i) => this.makeHand(i));
     this.desk = { yaw: 0, pitch: 0, ndc: new THREE.Vector2(), keys: {}, hand: { desktop: true, held: null, trig: false, trigPressed: false } };
     this.deskAim = { o: new THREE.Vector3(), d: new THREE.Vector3(0, 0, -1) };
@@ -120,7 +137,7 @@ export class Player {
     const glove = Models.freeGlove();
     glove.visible = false;
     grip.add(glove);
-    const hand = { i, controller, grip, glove, src: null, gp: null, side: '', held: null, trig: false, trigPressed: false, near: -1, aPrev: false, xPrev: false };
+    const hand = { i, controller, grip, glove, src: null, gp: null, side: '', held: null, trig: false, trigPressed: false, near: -1, aPrev: false, xPrev: false, bar: null, pos0: 0, base: 0, q0: new THREE.Quaternion(), hapT: 0 };
     controller.addEventListener('connected', (e) => {
       hand.src = e.data;
       hand.gp = e.data.gamepad || null;
@@ -129,6 +146,7 @@ export class Player {
       glove.scale.x = hand.side === 'left' ? -1 : 1;
     });
     controller.addEventListener('disconnected', () => {
+      this.releaseBar(hand);
       hand.src = null;
       hand.gp = null;
       glove.visible = false;
@@ -142,6 +160,7 @@ export class Player {
       hand.trig = false;
     });
     controller.addEventListener('squeezestart', () => this.onGrip(hand));
+    controller.addEventListener('squeezeend', () => this.releaseBar(hand));
     return hand;
   }
 
@@ -166,8 +185,7 @@ export class Player {
       if (s.gun) s.gun.dispose();
       s.gun = null;
     }
-    this.setSlotGun(0, new Gun('revolver'));
-    this.setSlotGun(1, new Gun('sawedoff'));
+    this.setSlotGun(0, new Gun('sawedoff'));
     for (const h of this.hands) h.glove.visible = !!h.src;
     if (!G.xr) this.deskEquip(0);
     this.updateRings();
@@ -213,7 +231,7 @@ export class Player {
     }
     this.setSlotGun(slot, gun);
     if (holder) this.equip(holder, gun);
-    else if (!G.xr && !this.desk.hand.held) this.deskEquip(slot);
+    else if (!G.xr) this.deskEquip(slot);
     this.updateRings();
   }
 
@@ -221,6 +239,19 @@ export class Player {
   onGrip(hand) {
     G.audio.init();
     hand.grip.getWorldPosition(_v);
+    // mão vazia perto da manopla: segura o guidão
+    if (!hand.held) {
+      const side = this.nearBar(_v);
+      if (side) {
+        let holsterD = Infinity;
+        for (const sl of this.slots) if (sl.gun && !sl.gun.holder) holsterD = Math.min(holsterD, sl.anchor.getWorldPosition(_a).distanceTo(_v));
+        const barD = this.bike.bars.localToWorld(_a.copy(GRIP_POS[side])).distanceTo(_v);
+        if (barD <= holsterD) {
+          this.grabBar(hand, side);
+          return;
+        }
+      }
+    }
     let best = -1;
     let bd = GRAB_R;
     for (const s of this.slots) {
@@ -242,7 +273,77 @@ export class Player {
     }
   }
 
+  // ------------------------------------------------------------ guidão
+  nearBar(p) {
+    let best = null;
+    let bd = BAR_R;
+    for (const k of ['L', 'R']) {
+      if (this.hands.some((h) => h.bar === k)) continue;
+      const d = this.bike.bars.localToWorld(_a.copy(GRIP_POS[k])).distanceTo(p);
+      if (d < bd) {
+        bd = d;
+        best = k;
+      }
+    }
+    return best;
+  }
+
+  // ângulo do guidão implicado pela posição da mão (girando em torno da coluna de direção)
+  handBarAngle(hand) {
+    hand.grip.getWorldPosition(_v);
+    this.bike.group.worldToLocal(_v);
+    const rx = _v.x - this.bike.bars.position.x;
+    const rz = _v.z - this.bike.bars.position.z;
+    const g = GRIP_POS[hand.bar];
+    return wrapA(Math.atan2(-rz, rx) - Math.atan2(-g.z, g.x));
+  }
+  // giro do controle em torno do eixo vertical desde que agarrou
+  handTwist(hand) {
+    hand.controller.getWorldQuaternion(_qa);
+    _qb.copy(hand.q0).invert();
+    _qa.multiply(_qb);
+    return wrapA(2 * Math.atan2(_qa.y, _qa.w));
+  }
+
+  grabBar(hand, side) {
+    hand.bar = side;
+    hand.pos0 = this.handBarAngle(hand);
+    hand.base = this.barAngle;
+    hand.controller.getWorldQuaternion(hand.q0);
+    hand.glove.visible = false;
+    this.barGloves[side].visible = true;
+    this.pulse(hand, 0.5, 40);
+    G.audio.play('grab');
+  }
+
+  releaseBar(hand) {
+    if (!hand.bar) return;
+    this.barGloves[hand.bar].visible = false;
+    hand.bar = null;
+    hand.glove.visible = !!hand.src && !hand.held;
+  }
+
+  barSteer(realDt) {
+    let sum = 0;
+    let n = 0;
+    for (const h of this.hands) {
+      if (!h.bar) continue;
+      // gira o guidão movendo a mão em arco e/ou torcendo o controle no eixo vertical
+      sum += h.base + wrapA(this.handBarAngle(h) - h.pos0) * 0.6 + this.handTwist(h) * 0.9;
+      n++;
+      h.hapT -= realDt;
+      if (h.hapT <= 0) {
+        h.hapT = 0.12;
+        this.pulse(h, 0.04 + (this.speed / 45) * 0.08, 70);
+      }
+    }
+    if (!n) return null;
+    this.barAngle = damp(this.barAngle, clamp(sum / n, -BAR_MAX * 1.3, BAR_MAX * 1.3), 20, realDt);
+    return clamp(-this.barAngle / BAR_MAX, -1, 1);
+  }
+
   equip(hand, gun) {
+    this.releaseBar(hand);
     gun.holder = hand;
     hand.held = gun;
     gun.glove.visible = true;
@@ -299,7 +400,10 @@ export class Player {
     this.calibrateT = 0.5;
   }
   exitXR() {
-    for (const h of this.hands) if (h.held) this.holster(h);
+    for (const h of this.hands) {
+      this.releaseBar(h);
+      if (h.held) this.holster(h);
+    }
     this.xrOrigin.position.set(0, 0, 0);
     this.xrOrigin.rotation.set(0, 0, 0);
     this.camera.position.copy(HEAD);
@@ -389,6 +493,7 @@ export class Player {
   update(dt, realDt) {
     let steer = 0;
     let thr = 0;
+    const bar = G.xr ? this.barSteer(realDt) : null;
     if (G.xr) {
       for (const h of this.hands) {
         const gp = h.gp;
@@ -426,6 +531,7 @@ export class Player {
       if (k.KeyW || k.ArrowUp) thr += 1;
       if (k.KeyS || k.ArrowDown) thr -= 1;
     }
+    if (bar !== null) steer = Math.abs(bar) < 0.04 ? 0 : bar;
     steer = clamp(steer, -1, 1);
     if (G.state === 'dead') {
       steer = 0;
@@ -448,7 +554,8 @@ export class Player {
     if (offroad && Math.random() < 0.3) this.pulseAll(0.15, 20);
 
     this.rig.position.x = this.x;
-    this.bike.bars.rotation.y = -this.vx * 0.022;
+    if (bar === null) this.barAngle = damp(this.barAngle, -this.vx * 0.022, 8, dt);
+    this.bike.bars.rotation.y = this.barAngle;
     this.bike.wheel.rotation.x -= (this.speed * dt) / 0.34;
     this.bike.group.position.y = Math.sin(G.time * 55) * 0.0012 * (this.speed / 30) + (offroad ? Math.sin(G.time * 31) * 0.006 : 0);
     if (Math.random() < 0.25) G.fx.dust(_v.set(this.x + 0.3, 0.05, 1.2), 1);

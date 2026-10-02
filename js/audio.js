@@ -49,6 +49,7 @@ const GUN_SFX = {
   smg: { vol: 0.5, ft: 'bandpass', ff: 3000, nd: 0.07, f0: 220, f1: 80, td: 0.05 },
   magnum: { vol: 1.15, ft: 'lowpass', ff: 3000, nd: 0.5, f0: 95, f1: 28, td: 0.35 },
   tommy: { vol: 0.6, ft: 'bandpass', ff: 2200, nd: 0.09, f0: 180, f1: 60, td: 0.07 },
+  bazooka: { vol: 1.1, ft: 'lowpass', ff: 1200, nd: 0.6, f0: 160, f1: 40, td: 0.4 },
   launcher: { vol: 0.8, ft: 'lowpass', ff: 900, nd: 0.12, f0: 320, f1: 110, td: 0.16 },
   gatling: { vol: 0.42, ft: 'highpass', ff: 1800, nd: 0.05, f0: 240, f1: 90, td: 0.04 },
   enemy: { vol: 0.45, ft: 'lowpass', ff: 2200, nd: 0.14, f0: 150, f1: 50, td: 0.1 },

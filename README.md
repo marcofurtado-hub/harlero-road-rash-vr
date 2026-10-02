@@ -28,17 +28,18 @@ python3 serve.py
 **VR (Touch controllers)**
 | Ação | Botão |
 |---|---|
-| Pegar arma | leve a mão até um coldre (perto das coxas, os aros dourados) e aperte **GRIP** |
+| **Pilotar (guidão)** | leve a mão até a manopla do guidão e **segure o GRIP**; gire o controle no eixo horizontal (ou empurre/puxe a manopla) pra virar. Funciona com uma mão só: arma na direita, guidão na esquerda |
+| Pilotar (alternativo) | **Analógico** ← → quando nenhuma mão está no guidão |
+| Pegar arma | leve a mão até um coldre do lado direito (aros dourados) e aperte **GRIP** |
 | Guardar / trocar arma | aperte **GRIP** perto de um coldre (com outra arma: troca) |
-| Atirar | **Gatilho** (as automáticas atiram enquanto segura) |
-| Pilotar | **Analógico** ← → |
+| Atirar | **Gatilho**. Munição infinita! |
 | Acelerar / frear | **Analógico esquerdo** ↑ / ↓ |
 | Buzina | **A / X** |
 | Recentralizar | segure **B / Y** |
 
-Recarga: automática quando o pente acaba, com o giro de pistoleiro. Arma guardada no coldre recarrega sozinha. Dá pra usar duas armas, uma em cada mão.
+Arsenal: você começa com a **Escopeta Cano Duplo** e ganha automaticamente a **Magnum .50** (fim da onda 1), a **Metralhadora** (onda 2) e a **Bazuca** (onda 3). Depois da onda 4 aparecem nas cartas a Escopeta Automática, a Mini-Gatling e a guitarra **Flying V Laser**.
 
-**PC (para testar sem o headset)**: mouse mira e atira (clique no jogo pra prender o mouse; se o navegador não deixar, a mira segue o cursor), **A/D** pilota, **W/S** acelera/freia, **1-4** ou rodinha troca a arma, **R** recarrega, **Espaço** buzina.
+**PC (para testar sem o headset)**: mouse mira e atira (clique no jogo pra prender o mouse; se o navegador não deixar, a mira segue o cursor), **A/D** pilota, **W/S** acelera/freia, **1-4** ou rodinha troca a arma, **Espaço** buzina.
 
 Para testar só no PC também dá pra usar `python3 serve.py --http` e abrir `http://localhost:8000`.
 
@@ -55,7 +56,7 @@ Para testar só no PC também dá pra usar `python3 serve.py --http` e abrir `ht
   - **Brutamontes**: chopper gigante, colete blindado (mire na cabeça) e escopeta.
   - **Caveira**: sniper com mira laser vermelha. Quando o laser pisca, desvie!
   - **Chefão**: picape monstro com metralhadora giratória, foguetes teleguiados (dá pra derrubar no tiro), barris jogados na pista e reforços. Os tanques de combustível vermelhos são pontos fracos.
-- **9 armas**, cada vez mais fortes: Revólver .44 → Escopeta Serrada → Uzi → Hand Cannon .50 dourada (perfura) → Tommy Gun → Escopeta Automática → Lança-Granadas → Mini-Gatling → **Flying V Laser** (uma guitarra que solta um feixe contínuo).
+- **7 armas com munição infinita**: Escopeta Cano Duplo → Magnum .50 dourada (perfura) → Metralhadora → Bazuca → Escopeta Automática → Mini-Gatling → **Flying V Laser** (uma guitarra que solta um feixe contínuo).
 - **Upgrades entre ondas**: atire numa de 3 cartas (nova arma, turbinar arma até o nível 5, ou perks como munição explosiva, bala perfurante, vampiro, tempo de bala, jaqueta blindada e regeneração).
 - **Pista viva**: barris explosivos (atire neles perto dos punks!), carros abandonados, cones, caixas de vida e a palheta **Fúria do Rock** (dano dobrado por 10 s, com solo de guitarra).
 - **Combos**, headshots, ragdoll dos punks voando, explosões em cadeia, vibração nos controles.

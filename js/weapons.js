@@ -4,16 +4,17 @@ import * as Models from './models.js';
 
 // dmg = por projétil (beam: por segundo); rate = tiros/s
 export const WEAPONS = {
-  revolver: { name: 'Revólver .44', tier: 1, icon: '🔫', dmg: 34, rate: 3.2, mag: 6, reload: 1.1, spread: 0.01, range: 150, sfx: 'pistol', recoil: 0.45, haptic: 0.55, tracer: 0xffe080, desc: 'Seis balas de justiça do velho oeste.' },
-  sawedoff: { name: 'Escopeta Serrada', tier: 1, icon: '💥', dmg: 12, pellets: 9, rate: 1.9, mag: 2, reload: 1.15, spread: 0.08, range: 45, sfx: 'shotgun', recoil: 0.9, haptic: 1, tracer: 0xffc060, desc: 'Dois canos. Resolve tudo de perto.' },
-  uzi: { name: 'Uzi', tier: 2, icon: '🔫', dmg: 12, rate: 13, auto: true, mag: 32, reload: 1.4, spread: 0.04, range: 100, sfx: 'smg', recoil: 0.14, haptic: 0.3, tracer: 0xfff0a0, desc: 'Automática. Segura o gatilho e reza.' },
-  magnum: { name: 'Hand Cannon .50', tier: 2, icon: '🌟', dmg: 120, rate: 1.5, mag: 5, reload: 1.5, spread: 0.003, range: 220, pierce: 2, sfx: 'magnum', recoil: 1.1, haptic: 1, tracer: 0xffd040, desc: 'Banhada a ouro. Atravessa 3 punks.' },
-  tommy: { name: 'Tommy Gun', tier: 3, icon: '🎻', dmg: 21, rate: 11, auto: true, mag: 50, reload: 1.8, spread: 0.026, range: 140, sfx: 'tommy', recoil: 0.16, haptic: 0.35, tracer: 0xffe080, desc: 'Tambor de 50. Estilo gângster.' },
-  autoshotgun: { name: 'Escopeta Automática', tier: 3, icon: '💣', dmg: 15, pellets: 8, rate: 4.5, auto: true, mag: 12, reload: 1.8, spread: 0.065, range: 55, sfx: 'shotgun', recoil: 0.55, haptic: 0.8, tracer: 0xffc060, desc: 'Chumbo grosso em rajada.' },
-  launcher: { name: 'Lança-Granadas', tier: 4, icon: '🧨', dmg: 160, splash: 5, rate: 1.6, mag: 6, reload: 2.2, spread: 0.008, projectile: true, pspeed: 46, range: 200, sfx: 'launcher', recoil: 0.8, haptic: 0.8, tracer: 0xffa040, desc: 'Explosões em área. Combo garantido.' },
-  gatling: { name: 'Mini-Gatling', tier: 4, icon: '⚙️', dmg: 15, rate: 24, auto: true, mag: 180, reload: 2.6, spread: 0.045, range: 130, spinup: 0.45, sfx: 'gatling', recoil: 0.07, haptic: 0.22, tracer: 0xfff0a0, desc: '24 tiros por segundo. Gira e destrói.' },
-  flyingv: { name: 'Flying V Laser', tier: 5, icon: '🎸', dmg: 230, beam: true, rate: 1, auto: true, mag: 100, reload: 2.0, spread: 0, range: 170, pierce: 99, sfx: 'laser', recoil: 0, haptic: 0.35, tracer: 0x40f0ff, desc: 'Um solo de guitarra que derrete tudo.' },
+  sawedoff: { name: 'Escopeta Cano Duplo', tier: 1, icon: '💥', dmg: 14, pellets: 10, rate: 1.8, mag: 2, reload: 1, spread: 0.075, range: 50, sfx: 'shotgun', recoil: 0.9, haptic: 1, tracer: 0xffc060, desc: 'Dois canos serrados. Resolve tudo de perto.' },
+  magnum: { name: 'Magnum .50', tier: 2, icon: '🌟', dmg: 120, rate: 1.7, mag: 6, reload: 1, spread: 0.003, range: 220, pierce: 2, sfx: 'magnum', recoil: 1.1, haptic: 1, tracer: 0xffd040, desc: 'Banhada a ouro. Atravessa 3 punks.' },
+  tommy: { name: 'Metralhadora', tier: 3, icon: '🔫', dmg: 21, rate: 12, auto: true, mag: 50, reload: 1, spread: 0.028, range: 140, sfx: 'tommy', recoil: 0.16, haptic: 0.35, tracer: 0xffe080, desc: 'Segura o gatilho e varre a estrada.' },
+  bazooka: { name: 'Bazuca', tier: 4, icon: '🚀', dmg: 230, splash: 6, rate: 1.1, mag: 1, reload: 1, spread: 0.004, projectile: true, straight: true, pspeed: 40, range: 220, sfx: 'bazooka', recoil: 1.3, haptic: 1, tracer: 0xffa040, desc: 'Foguete em linha reta. Explode grupos inteiros.' },
+  autoshotgun: { name: 'Escopeta Automática', tier: 5, icon: '💣', dmg: 16, pellets: 8, rate: 4.5, auto: true, mag: 12, reload: 1, spread: 0.065, range: 55, sfx: 'shotgun', recoil: 0.55, haptic: 0.8, tracer: 0xffc060, desc: 'Chumbo grosso em rajada.' },
+  gatling: { name: 'Mini-Gatling', tier: 5, icon: '⚙️', dmg: 16, rate: 24, auto: true, mag: 180, reload: 1, spread: 0.045, range: 130, spinup: 0.45, sfx: 'gatling', recoil: 0.07, haptic: 0.22, tracer: 0xfff0a0, desc: '24 tiros por segundo. Gira e destrói.' },
+  flyingv: { name: 'Flying V Laser', tier: 6, icon: '🎸', dmg: 240, beam: true, rate: 1, auto: true, mag: 100, reload: 1, spread: 0, range: 170, pierce: 99, sfx: 'laser', recoil: 0, haptic: 0.35, tracer: 0x40f0ff, desc: 'Um solo de guitarra que derrete tudo.' },
 };
+// armas ganhas automaticamente ao limpar cada onda
+export const PROGRESSION = { 1: 'magnum', 2: 'tommy', 3: 'bazooka' };
+export const INFINITE_AMMO = true;
 export const WEAPON_ORDER = Object.keys(WEAPONS);
 const BASE_STATS = { dmgMul: 1, rateMul: 1, spreadMul: 1, magMul: 1, reloadMul: 1, pierce: 0 };
 
@@ -94,6 +95,7 @@ export class Gun {
     // barra de munição
     this.ammoBar = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.01, 0.09), new THREE.MeshBasicMaterial({ color: 0x40ff60 }));
     this.ammoBar.position.copy(m.ammo);
+    this.ammoBar.visible = !INFINITE_AMMO;
     this.kick.add(this.ammoBar);
     // mira laser
     const lg = new THREE.BoxGeometry(0.004, 0.004, 1);
@@ -148,6 +150,7 @@ export class Gun {
       auto: !!d.auto,
       splash: d.splash ? d.splash * (1 + 0.08 * L) : 0,
       pspeed: d.pspeed || 46,
+      straight: !!d.straight,
     };
   }
 
@@ -211,8 +214,10 @@ export class Gun {
     this.cool = 1 / S.rate;
     this.buffer = 0;
     this.fire(S, aimO, aimD);
-    this.ammo--;
-    if (this.ammo <= 0) this.startReload();
+    if (!INFINITE_AMMO) {
+      this.ammo--;
+      if (this.ammo <= 0) this.startReload();
+    }
   }
 
   muzzleWorld(out) {
@@ -284,7 +289,7 @@ export class Gun {
       this.firing = true;
       G.audio.laserStart();
     }
-    this.ammo -= 30 * dt;
+    if (!INFINITE_AMMO) this.ammo -= 30 * dt;
     if (this.ammo <= 0) {
       this.ammo = 0;
       this.startReload();

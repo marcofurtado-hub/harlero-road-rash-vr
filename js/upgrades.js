@@ -7,10 +7,8 @@ import { canvasTex, FW, FB, fitFont, wrapLines, strokeText, roundRect, setFont }
 export const PERKS = [
   { id: 'dmg', icon: '💥', name: 'Pólvora Turbinada', desc: '+20% de dano em todas as armas', max: 5, rarity: 'common', apply: (s) => (s.dmgMul *= 1.2) },
   { id: 'rate', icon: '⚡', name: 'Dedo Nervoso', desc: '+15% de cadência de tiro', max: 5, rarity: 'common', apply: (s) => (s.rateMul *= 1.15) },
-  { id: 'reload', icon: '🤠', name: 'Mãos Rápidas', desc: 'Recarga 25% mais rápida', max: 3, rarity: 'common', apply: (s) => (s.reloadMul *= 0.75) },
   { id: 'acc', icon: '🎯', name: 'Olho de Águia', desc: '-25% de dispersão. Mais precisão!', max: 3, rarity: 'common', apply: (s) => (s.spreadMul *= 0.75) },
   { id: 'crit', icon: '💀', name: 'Sangue Frio', desc: 'Tiros na cabeça causam +75% de dano', max: 3, rarity: 'rare', apply: (s) => (s.critMul += 0.75) },
-  { id: 'mag', icon: '📦', name: 'Pente Estendido', desc: '+30% de munição por pente', max: 3, rarity: 'common', apply: (s) => (s.magMul *= 1.3) },
   { id: 'pierce', icon: '🗡️', name: 'Bala Perfurante', desc: 'Tiros atravessam +1 inimigo', max: 2, rarity: 'rare', apply: (s) => (s.pierce += 1) },
   { id: 'boom', icon: '🧨', name: 'Munição Explosiva', desc: 'Acertos podem causar mini-explosões', max: 3, rarity: 'epic', apply: (s) => (s.explosive += 1) },
   { id: 'vamp', icon: '🦇', name: 'Vampiro do Asfalto', desc: 'Cura 4 de vida a cada abate', max: 3, rarity: 'rare', apply: (s) => (s.lifesteal += 4) },
@@ -27,8 +25,8 @@ const RARITY = {
   epic: ['#c25cff', 'ÉPICO'],
   legend: ['#ff9a1e', 'LENDÁRIO'],
 };
-const tierRarity = (t) => (t <= 1 ? 'common' : t === 2 ? 'rare' : t === 3 ? 'epic' : 'legend');
-const SLOT_NAMES = ['coldre direito', 'coldre esquerdo', 'quadril direito', 'quadril esquerdo'];
+const tierRarity = (t) => (t <= 1 ? 'common' : t === 2 ? 'rare' : t <= 4 ? 'epic' : 'legend');
+const SLOT_NAMES = ['coldre da coxa', 'coldre do quadril', 'coldre do tanque', 'coldre da perna'];
 
 function statBars(d, level) {
   const L = level - 1;
@@ -38,7 +36,7 @@ function statBars(d, level) {
     ['DANO', clamp(Math.sqrt(dmg / 200), 0.05, 1)],
     ['CADÊNCIA', clamp(Math.sqrt(rate / 26), 0.05, 1)],
     ['PRECISÃO', clamp(1 - (d.spread * Math.pow(0.85, L)) / 0.1, 0.05, 1)],
-    ['MUNIÇÃO', clamp(Math.sqrt((d.mag * (1 + 0.2 * L)) / 180), 0.05, 1)],
+    ['ALCANCE', clamp((d.range || 120) / 220, 0.05, 1)],
   ];
 }
 
@@ -65,10 +63,10 @@ function levelOption(g) {
     icon: '⭐',
     title: g.def.name,
     sub: `NÍVEL ${g.level} ➜ ${g.level + 1}`,
-    desc: '+25% dano, +12% cadência, +precisão, +20% munição',
+    desc: '+25% dano, +12% cadência e mais precisão',
     rarity: g.level >= 3 ? 'epic' : 'rare',
     stats: statBars(g.def, g.level + 1),
-    foot: 'recarrega na hora',
+    foot: 'munição infinita',
     apply: () => {
       g.level++;
       g.refill();
@@ -97,8 +95,9 @@ export function makeOptions() {
   const P = G.player;
   const opts = [];
   const owned = P.ownedIds();
-  const maxTier = Math.min(5, 1 + Math.ceil(G.wave / 2));
-  let unlocks = WEAPON_ORDER.filter((id) => !owned.includes(id) && WEAPONS[id].tier <= maxTier);
+  // as 4 primeiras armas vêm de graça (PROGRESSION); as pesadas aparecem nas cartas a partir da onda 4
+  const maxTier = G.wave >= 6 ? 6 : G.wave >= 4 ? 5 : 0;
+  let unlocks = WEAPON_ORDER.filter((id) => !owned.includes(id) && WEAPONS[id].tier >= 5 && WEAPONS[id].tier <= maxTier);
   if (unlocks.length && Math.random() < 0.92) {
     const id = weightedPick(unlocks, (i) => Math.pow(2.2, WEAPONS[i].tier));
     opts.push(weaponOption(id));

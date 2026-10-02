@@ -99,13 +99,20 @@ export class Projectiles {
   }
 
   grenade(from, dir, S) {
-    const mesh = simpleMesh((b) => {
-      b.sph(0.045, 0x4f5a2a, 0, 0, 0, { sz: 1.4 }, 8, 6);
-      b.sph(0.03, 0xffd040, 0, 0, 0.05, { glow: true }, 5, 4);
-    });
+    const mesh = S.straight
+      ? simpleMesh((b) => {
+          b.cyl(0.045, 0.045, 0.4, 8, 0x4f5a2a, 0, 0, 0, Math.PI / 2, 0, 0);
+          b.cone(0.045, 0.14, 8, 0xc02020, 0, 0, -0.27, -Math.PI / 2, 0, 0);
+          b.sph(0.06, 0xffc040, 0, 0, 0.22, { glow: true }, 6, 4);
+        })
+      : simpleMesh((b) => {
+          b.sph(0.045, 0x4f5a2a, 0, 0, 0, { sz: 1.4 }, 8, 6);
+          b.sph(0.03, 0xffd040, 0, 0, 0.05, { glow: true }, 5, 4);
+        });
     mesh.position.copy(from);
+    if (S.straight) mesh.lookAt(_v.copy(from).sub(dir));
     this.scene.add(mesh);
-    this.things.push({ kind: 'grenade', mesh, vel: dir.clone().multiplyScalar(S.pspeed), age: 0, r: 0.2, dmg: S.dmg, splash: S.splash });
+    this.things.push({ kind: 'grenade', mesh, vel: dir.clone().multiplyScalar(S.pspeed), age: 0, r: S.straight ? 0.35 : 0.2, dmg: S.dmg, splash: S.splash, straight: S.straight });
   }
 
   rayHits(o, d, max, out) {
@@ -206,9 +213,12 @@ export class Projectiles {
           if (P.hitSegment(_w, p, 0.35)) this.burst(t, false);
           else if (p.y <= 0.1 || t.age > 7 || p.z > 10) this.burst(t, false);
         } else if (t.kind === 'grenade') {
-          t.vel.y -= GRAV * 0.55 * dt;
+          if (!t.straight) t.vel.y -= GRAV * 0.55 * dt;
           p.addScaledVector(t.vel, dt);
-          if (Math.random() < 0.8) G.fx.burst('spark', p, 1, { speed: 0.5, size: 0.06, life: 0.25, anchor: 0.2 });
+          if (t.straight) {
+            G.fx.smoke(_v.copy(p), 1, 0.25);
+            G.fx.fire(p, 1, 0.18, 0.3);
+          } else if (Math.random() < 0.8) G.fx.burst('spark', p, 1, { speed: 0.5, size: 0.06, life: 0.25, anchor: 0.2 });
           const hit = G.enemies.proximity(p, t.r);
           if (hit || p.y <= 0.05 || t.age > 3.5) {
             if (p.y < 0.05) p.y = 0.2;

@@ -11,6 +11,7 @@ import { Projectiles } from './projectiles.js';
 import { Enemies } from './enemies.js';
 import { Waves } from './waves.js';
 import { Cards, makeOptions, drawUpgrade, drawTarget, drawInfo, drawTitle } from './upgrades.js';
+import { PROGRESSION, WEAPONS } from './weapons.js';
 
 const $ = (id) => document.getElementById(id);
 const _v = new THREE.Vector3();
@@ -63,8 +64,8 @@ class Game {
   showTitleCards() {
     const vr = G.xr;
     const how = vr
-      ? ['#PEGAR ARMA', 'Leve a mão até o coldre (perto das coxas) e aperte o GRIP', '#ATIRAR', 'GATILHO', '#PILOTAR', 'Analógico ← →  •  ↑ acelera  ↓ freia', '#EXTRAS', 'A/X buzina  •  segure B/Y recentraliza']
-      : ['#MIRAR / ATIRAR', 'Mouse + clique', '#PILOTAR', 'A / D  •  W acelera  S freia', '#ARMAS', '1 2 3 4 ou rodinha  •  R recarrega', '#BUZINA', 'Espaço'];
+      ? ['#PILOTAR', 'Segure a manopla do guidão com GRIP e gire o controle (ou analógico)', '#ARMA', 'Mão direita no coldre da coxa + GRIP', '#ATIRAR', 'GATILHO • munição infinita', '#EXTRAS', '↑↓ acelera/freia • A/X buzina • B/Y recentraliza']
+      : ['#MIRAR / ATIRAR', 'Mouse + clique', '#PILOTAR', 'A / D  •  W acelera  S freia', '#ARMAS', '1 2 3 4 ou rodinha', '#BUZINA', 'Espaço'];
     G.cards.show([
       { ghost: true, w: 4.2, h: 1.65, cw: 1024, ch: 400, y: 3.05, z: -4.8, draw: drawTitle, face: false },
       { x: -1.6, y: 1.25, z: -3.4, draw: (g, w, h) => drawInfo(g, w, h, 'COMO JOGAR', how) },
@@ -101,7 +102,12 @@ class Game {
     G.state = 'cleared';
     const bonus = 250 * G.wave;
     G.score += bonus;
-    G.hud.announce('ONDA LIMPA!', `BÔNUS +${bonus}`, '#60ff80', 2.4);
+    const gift = PROGRESSION[G.wave];
+    if (gift && !G.player.ownedIds().includes(gift)) {
+      G.player.giveWeapon(gift);
+      G.hud.announce('NOVA ARMA!', `${WEAPONS[gift].name.toUpperCase()} NO COLDRE`, '#60ff80', 3);
+      G.player.pulseAll(0.6, 200);
+    } else G.hud.announce('ONDA LIMPA!', `BÔNUS +${bonus}`, '#60ff80', 2.4);
     G.audio.play('clear');
     G.audio.music && G.audio.music.setMode('calm');
     this.later(2.4, () => this.showUpgrades());

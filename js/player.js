@@ -487,7 +487,7 @@ export class Player {
       this.vx = 0;
     }
     const offroad = Math.abs(this.x) > 7.7;
-    let target = G.state === 'title' ? 16 : G.state === 'dead' ? 4 : 27 + thr * (thr > 0 ? 12 : 11);
+    let target = G.state === 'title' ? 16 : G.state === 'dead' ? 4 : 30 + thr * (thr > 0 ? 13 : 12);
     if (offroad) target = Math.min(target, 22);
     if (this.crashT > 0) this.crashT -= dt;
     this.speed = damp(this.speed, target, this.crashT > 0 ? 0.5 : 1.3, dt);

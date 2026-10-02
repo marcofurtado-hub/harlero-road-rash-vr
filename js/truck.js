@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { G, rand, clamp, damp } from './ctx.js';
 import * as Models from './models.js';
 import { WEAPONS } from './weapons.js';
-import { toDrum } from './curve.js';
+import { toWorld } from './curve.js';
 
 const _v = new THREE.Vector3();
 const _w = new THREE.Vector3();
@@ -86,7 +86,7 @@ export class TruckEvent {
         tr.rotation.z = damp(tr.rotation.z, Math.sign(this.baseX || 1) * 0.25, 2, dt);
         if (!this.boomed && Math.abs(this.x) > 15) {
           this.boomed = true;
-          G.explode(toDrum(_v.set(this.x, 2, this.z)), 8, 0, {});
+          G.explode(toWorld(_v.set(this.x, 2, this.z)), 8, 0, {});
           tr.visible = false;
         }
       }
@@ -97,7 +97,7 @@ export class TruckEvent {
         this.hornT = rand(0.5, 1.1);
         G.audio.play('horn');
       }
-      if (Math.random() < 0.5) G.fx.smoke(toDrum(_v.set(this.x + rand(-1, 1), 0.2, this.z + 2.6)), 1, 0.6);
+      if (Math.random() < 0.5) G.fx.smoke(toWorld(_v.set(this.x + rand(-1, 1), 0.2, this.z + 2.6)), 1, 0.6);
       if (this.boomed && this.t > this.boomT + 3) {
         this.scene.remove(tr);
         this.truck = null;
@@ -157,7 +157,7 @@ export class TruckEvent {
         this.glow.position.copy(g.position);
         this.glow.scale.setScalar(0.9 + Math.sin(this.t * 20) * 0.15);
       }
-      if (Math.random() < 0.6) G.fx.burst('spark', toDrum(_v.copy(g.position)), 1, { speed: 1, size: 0.07, life: 0.4, anchor: 0 });
+      if (Math.random() < 0.6) G.fx.burst('spark', toWorld(_v.copy(g.position)), 1, { speed: 1, size: 0.07, life: 0.4, anchor: 0 });
     }
     if (this.phase === 'done' && !this.truck && !this.chest) this.active = false;
   }
@@ -179,13 +179,13 @@ export class TruckEvent {
     this.scene.add(c);
     this.chest = c;
     G.audio.play('crash', c.position);
-    G.fx.text('O BAÚ CAIU!', toDrum(_v.copy(c.position).add(_w.set(0, 1.5, 0))), '#ffd21e', 0.6);
+    G.fx.text('O BAÚ CAIU!', toWorld(_v.copy(c.position).add(_w.set(0, 1.5, 0))), '#ffd21e', 0.6);
   }
 
   burstChest() {
     const c = this.chest;
     const flatP = c.position.clone().add(_w.set(0, 0.4, 0));
-    const p = toDrum(_v.copy(flatP));
+    const p = toWorld(_v.copy(flatP));
     G.audio.play('crash', p);
     G.audio.play('pickup');
     G.fx.burst('debris', p, 20, { speed: 6, size: 0.14, life: 1, grav: 12, up: 3, anchor: 0.7 });

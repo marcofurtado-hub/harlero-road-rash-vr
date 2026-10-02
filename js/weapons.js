@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { G, rand, clamp, damp } from './ctx.js';
 import * as Models from './models.js';
-import { DRUM_R } from './curve.js';
+import { groundY } from './curve.js';
 
 // dmg = por projétil (beam: por segundo); rate = tiros/s
 export const WEAPONS = {
@@ -42,17 +42,27 @@ const flashTex = (() => {
   return t;
 })();
 
-// interseção do raio com a superfície do tambor (cilindro de eixo X, centro em y = -R)
+// interseção do raio com o chão da pista (marcha ao longo do raio; o chão sobe/desce com os morros)
 function groundT(o, d) {
-  const R = DRUM_R;
-  const oy = o.y + R;
-  const a = d.y * d.y + d.z * d.z;
-  const b = 2 * (oy * d.y + o.z * d.z);
-  const c = oy * oy + o.z * o.z - R * R;
-  const disc = b * b - 4 * a * c;
-  if (a < 1e-9 || disc < 0) return Infinity;
-  const t = (-b - Math.sqrt(disc)) / (2 * a);
-  return t > 0 ? t : Infinity;
+  if (o.y - groundY(o.z) <= 0) return 0;
+  let prev = 0;
+  for (let t = 2; t <= 240; t += t < 40 ? 2 : 6) {
+    const y = o.y + d.y * t;
+    const z = o.z + d.z * t;
+    if (y < groundY(z)) {
+      // refina
+      let a = prev;
+      let b = t;
+      for (let k = 0; k < 6; k++) {
+        const m = (a + b) / 2;
+        if (o.y + d.y * m < groundY(o.z + d.z * m)) b = m;
+        else a = m;
+      }
+      return b;
+    }
+    prev = t;
+  }
+  return Infinity;
 }
 
 function spreadDir(dir, s, out) {

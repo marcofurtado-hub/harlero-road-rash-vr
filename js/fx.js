@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { G, rand, pick } from './ctx.js';
 import { makeCanvas, FB, strokeText, fitFont } from './text.js';
-import { DRUM_R, toDrum, fromDrum, drumAngle } from './curve.js';
+import { toWorld, fromWorld, groundY, headingAt } from './curve.js';
 
 const PVS = `
 attribute float psize;
@@ -114,14 +114,10 @@ class Particles {
       this.pos[i3 + 1] += this.vel[i3 + 1] * dt;
       this.pos[i3 + 2] += (this.vel[i3 + 2] + this.anchor[i] * speed) * dt;
       if (this.grav[i] > 0) {
-        // quica na superfície do tambor
-        const yy = this.pos[i3 + 1] + DRUM_R;
-        const zz = this.pos[i3 + 2];
-        const rr = Math.sqrt(yy * yy + zz * zz);
-        if (rr < DRUM_R + 0.02) {
-          const k2 = (DRUM_R + 0.02) / rr;
-          this.pos[i3 + 1] = yy * k2 - DRUM_R;
-          this.pos[i3 + 2] = zz * k2;
+        // quica no chão da pista (que sobe e desce com os morros)
+        const gy = groundY(this.pos[i3 + 2]) + 0.02;
+        if (this.pos[i3 + 1] < gy) {
+          this.pos[i3 + 1] = gy;
           this.vel[i3 + 1] *= -0.3;
           this.anchor[i] = 1;
         }
@@ -266,9 +262,9 @@ export class FX {
     b.visible = true;
     const rg = this.rings[this.rIdx++ % this.rings.length];
     // anel no chão, tangente ao tambor
-    const fl = fromDrum(p.clone());
-    rg.position.copy(toDrum(fl.setY(0.08)));
-    rg.rotation.set(-drumAngle(rg.position), 0, 0);
+    const fl = fromWorld(p.clone());
+    rg.position.copy(toWorld(fl.setY(0.08)));
+    rg.rotation.set(0, -headingAt(rg.position.z), 0);
     rg.userData.t = 0;
     rg.userData.r = r;
     rg.visible = true;

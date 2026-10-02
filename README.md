@@ -46,7 +46,8 @@ Para testar só no PC também dá pra usar `python3 serve.py --http` e abrir `ht
 
 ## O que tem no jogo
 
-- **Mundo num tambor gigante**: a Rota 66 infinita roda em cima de um cilindro enorme que gira na sua direção. Punks, cactos, outdoors e o caminhão surgem pela crista, e o sol retrô fica "sentado" na crista com as mesas do deserto ao fundo.
+- **Viagem arcade pelos EUA (estilo Cruis'n USA)**: estrada procedural com curvas e morros de verdade (dá pra ver a pista subindo e descendo lá na frente; o céu gira quando você faz a curva) e **uma região nova a cada onda**: Arizona/Rota 66 → Grand Canyon (corredor de paredões) → Death Valley (sal branco) → Floresta de Redwood (sequoias gigantes) → Golden Gate (ponte suspensa sobre o mar, com o chefão) → Fazendas de Iowa (milharal, silos, moinhos) → Chicago (arranha-céus) → Washington D.C. (obelisco, Capitólio, cerejeiras) e recomeça.
+- **Trânsito**: carros e picapes mais lentos na pista e outros te ultrapassando buzinando. Bater dói, e os punks também se arrebentam neles.
 - **Ondas** com dificuldade crescente (mais inimigos, mais vida, mais dano, mira melhor) e **chefão a cada 5 ondas**.
 - **7 tipos de inimigos + chefão**:
   - **Punk**: moicano e pistola. O básico.
@@ -82,7 +83,8 @@ js/fx.js          partículas, traçantes, explosões, textos
 js/audio.js       música e efeitos 100% sintetizados (Web Audio)
 js/hud.js         painel no tanque, letreiros, barra do chefão
 js/models.js      todos os modelos 3D procedurais (low-poly)
-js/curve.js       shader do tambor (enrola o mundo plano num cilindro gigante)
+js/curve.js       gerador da pista (curvas/morros) + shader que leva o mundo plano pra estrada
+js/scenery.js     modelos das regiões (cânion, sequoias, ponte, fazenda, cidade, D.C., trânsito)
 ```
 
 Dicas de performance: tudo é low-poly com cor por vértice (poucas draw calls), sem sombras dinâmicas, com foveated rendering. Se quiser mais nitidez no Quest 3, abra com `?scale=1.3` no fim do endereço.

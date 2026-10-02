@@ -14,7 +14,7 @@ export class Waves {
     this.queue = [];
   }
 
-  start(n) {
+  start(n, place = '') {
     this.n = n;
     this.active = true;
     this.queue = [];
@@ -40,10 +40,10 @@ export class Waves {
     this.interval = Math.max(0.7, 2.6 - n * 0.14);
     if (boss) {
       const name = BOSS_NAMES[Math.floor(n / 5 - 1) % BOSS_NAMES.length];
-      G.hud.announce(`ONDA ${n}: CHEFÃO!`, name, '#ff3030', 3.5);
+      G.hud.announce(`ONDA ${n}: CHEFÃO!`, `${name} • ${place}`, '#ff3030', 3.5);
     } else {
       const fr = fresh.length ? `NOVO: ${fresh.map((f) => TYPES[f].name.toUpperCase()).join(' + ')}` : pick(GANGS);
-      G.hud.announce(`ONDA ${n}`, fr, '#ffd21e', 3);
+      G.hud.announce(place || `ONDA ${n}`, `ONDA ${n} • ${fr}`, '#ffd21e', 3.2);
     }
   }
 

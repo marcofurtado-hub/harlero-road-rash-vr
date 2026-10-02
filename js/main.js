@@ -12,7 +12,7 @@ import { Enemies } from './enemies.js';
 import { Waves } from './waves.js';
 import { Cards, drawTarget, drawInfo, drawTitle, drawToggle } from './upgrades.js';
 import { TruckEvent } from './truck.js';
-import { toDrum, drumHeight } from './curve.js';
+import { toWorld, updateTrack, TRACK } from './curve.js';
 
 // arma que o caminhão derruba ao fim de cada onda (depois disso: turbo em todas)
 const REWARDS = ['magnum', 'tommy', 'bazooka', 'autoshotgun', 'gatling', 'flyingv'];
@@ -59,6 +59,7 @@ class Game {
     G.state = 'title';
     this.after = null;
     this.resetWorld();
+    if (G.world.themeIdx !== 0) G.world.jumpTheme(0);
     G.player.reset();
     G.furyT = 0;
     G.combo = 0;
@@ -103,7 +104,9 @@ class Game {
   nextWave() {
     G.wave++;
     G.state = 'wave';
-    G.waves.start(G.wave);
+    // cada onda é uma região nova da viagem pelos EUA
+    const th = G.world.setTheme(G.wave - 1);
+    G.waves.start(G.wave, th.name);
     G.audio.music && G.audio.music.setMode(G.wave % 5 === 0 ? 'boss' : 'combat');
     G.audio.play('wave');
   }
@@ -192,7 +195,7 @@ G.onKill = (e, info) => {
   else P.heal(40);
   e.center(_v);
   _v.y += 1.2;
-  toDrum(_v);
+  toWorld(_v);
   let label = `+${Math.round(pts)}`;
   let color = '#ffd21e';
   if (info.boss) {
@@ -250,10 +253,12 @@ async function boot() {
   scene.background = new THREE.Color(HORIZON);
   scene.fog = new THREE.Fog(HORIZON, 70, 290);
   const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 1600);
-  scene.add(new THREE.HemisphereLight(0xffe0c0, 0x7a4a30, 2.0));
+  const hemi = new THREE.HemisphereLight(0xffe0c0, 0x7a4a30, 2.0);
+  scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffd0a0, 2.0);
   sun.position.set(-0.4, 1, 0.7);
   scene.add(sun);
+  G.lights = { hemi, dir: sun };
 
   G.renderer = renderer;
   G.scene = scene;

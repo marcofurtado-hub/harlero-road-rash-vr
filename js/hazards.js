@@ -2,7 +2,8 @@
 import * as THREE from 'three';
 import { G, rand, pick, chance, clamp, weightedPick } from './ctx.js';
 import * as Models from './models.js';
-import { toDrum, fromDrum } from './curve.js';
+import { trafficCar } from './scenery.js';
+import { toWorld, fromWorld } from './curve.js';
 import { raySphere } from './projectiles.js';
 
 const _v = new THREE.Vector3();
@@ -41,6 +42,10 @@ export class Hazards {
         obj = Models.wreck();
         hw = 1.05;
         break;
+      case 'car':
+        obj = trafficCar();
+        hw = 1.0;
+        break;
       case 'cone':
         obj = Models.cone();
         hw = 0.3;
@@ -76,7 +81,7 @@ export class Hazards {
     }
     obj.position.set(x, 0, z);
     this.scene.add(obj);
-    const h = { kind, obj, x, z, hw, hp: 1, dead: false, t: 0, hitP: false, burned: new Set(), vel: null };
+    const h = { kind, obj, x, z, hw, hp: 1, dead: false, t: 0, hitP: false, burned: new Set(), vel: null, cs: o.cs || 0 };
     this.list.push(h);
     return h;
   }
@@ -93,7 +98,7 @@ export class Hazards {
   rayHits(o, d, max, out) {
     for (const h of this.list) {
       if (h.dead || h.kind !== 'barrel') continue;
-      toDrum(_v.set(h.x, 0.5, h.z));
+      toWorld(_v.set(h.x, 0.5, h.z));
       const t = raySphere(o, d, _v, 0.45);
       if (t >= 0 && t < max) out.push({ t, obj: this.wrap(h), part: 'barrel' });
     }
@@ -110,13 +115,13 @@ export class Hazards {
   explodeBarrel(h, shot) {
     if (h.dead) return;
     h.dead = true;
-    const p = toDrum(new THREE.Vector3(h.x, 0.6, h.z));
+    const p = toWorld(new THREE.Vector3(h.x, 0.6, h.z));
     G.explode(p, 5.5, 170, { hurtPlayer: true, playerDmg: 22 });
-    if (shot) G.fx.text('KABUM!', toDrum(new THREE.Vector3(h.x, 2, h.z)), '#ff8a20', 0.6);
+    if (shot) G.fx.text('KABUM!', toWorld(new THREE.Vector3(h.x, 2, h.z)), '#ff8a20', 0.6);
   }
 
   blast(pa, r) {
-    const p = fromDrum(pa.clone()); // explosão vem em coordenada aparente
+    const p = fromWorld(pa.clone()); // explosão vem em coordenada aparente
     for (const h of this.list) {
       if (h.dead || h.kind !== 'barrel') continue;
       if (Math.hypot(h.x - p.x, h.z - p.z) < r * 0.8) {
@@ -167,8 +172,16 @@ export class Hazards {
           h.vel.y *= -0.3;
         }
       } else {
-        h.z += speed * dt;
+        // carros do trânsito andam (cs = velocidade própria); o resto fica parado na pista
+        h.z += (speed - h.cs) * dt;
         h.obj.position.z = h.z;
+        if (h.kind === 'car') {
+          h.obj.position.y = Math.sin(h.t * 18) * 0.015;
+          if (!h.honked && Math.abs(h.z) < (h.cs > 30 ? 24 : 9) && Math.abs(h.x - P.x) < 3.5) {
+            h.honked = true;
+            G.audio.play('horn', h.obj.position);
+          }
+        }
       }
       // animação
       if (h.kind === 'health' || h.kind === 'fury') {
@@ -176,7 +189,7 @@ export class Hazards {
         h.obj.children[0].rotation.y += dt * 2.2;
       } else if (h.kind === 'fire') {
         for (const c of h.obj.children) c.scale.set(1, 0.7 + 0.4 * Math.abs(Math.sin(h.t * 9 + c.userData.ph)), 1);
-        if (Math.random() < 0.5) G.fx.fire(toDrum(_v.set(h.x + rand(-1, 1), 0.3, h.z + rand(-1, 1))), 1, 0.5, 1);
+        if (Math.random() < 0.5) G.fx.fire(toWorld(_v.set(h.x + rand(-1, 1), 0.3, h.z + rand(-1, 1))), 1, 0.5, 1);
       }
       // colisão com o jogador
       if (!h.dead && !h.hitP && !h.vel && h.z > -1.1 && h.z < 1.1 && Math.abs(h.x - P.x) < h.hw + 0.35) {
@@ -184,14 +197,14 @@ export class Hazards {
         this.onPlayer(h);
       }
       // colisão com inimigos
-      if (!h.dead && (h.kind === 'barrel' || h.kind === 'wreck' || h.kind === 'fire')) {
+      if (!h.dead && (h.kind === 'barrel' || h.kind === 'wreck' || h.kind === 'car' || h.kind === 'fire')) {
         for (const e of G.enemies.list) {
           if (e.dying || e.isBoss) continue;
           if (Math.abs(e.z - h.z) < 1.3 && Math.abs(e.x - h.x) < h.hw + 0.45) {
             if (h.kind === 'barrel') this.explodeBarrel(h, false);
-            else if (h.kind === 'wreck') {
-              G.fx.spark(toDrum(_v.set(e.x, 0.8, e.z)), 20);
-              G.fx.text('ACIDENTE!', toDrum(_v.set(e.x, 2.2, e.z)), '#ffd21e', 0.5);
+            else if (h.kind === 'wreck' || h.kind === 'car') {
+              G.fx.spark(toWorld(_v.set(e.x, 0.8, e.z)), 20);
+              G.fx.text('ACIDENTE!', toWorld(_v.set(e.x, 2.2, e.z)), '#ffd21e', 0.5);
               e.die({ crash: true });
             } else if (!h.burned.has(e)) {
               h.burned.add(e);
@@ -200,7 +213,7 @@ export class Hazards {
           }
         }
       }
-      if (h.dead || h.z > 35 || h.obj.position.y < -5) {
+      if (h.dead || h.z > 45 || h.z < -330 || h.obj.position.y < -5) {
         this.kill(h);
         this.list.splice(i, 1);
       }
@@ -212,6 +225,15 @@ export class Hazards {
     switch (h.kind) {
       case 'barrel':
         this.explodeBarrel(h, false);
+        break;
+      case 'car':
+        P.hurt(16, h.obj.position);
+        P.crash();
+        G.audio.play('crash');
+        G.audio.play('horn');
+        G.fx.spark(_v.set(P.x, 0.7, -0.8), 30);
+        G.fx.text('BATEU NO CARRO!', _v.set(P.x, 2.2, -4), '#ff4040', 0.5);
+        h.vel = new THREE.Vector3(rand(-4, 4), 5, -12);
         break;
       case 'wreck':
         P.hurt(20, h.obj.position);
@@ -250,10 +272,15 @@ export class Hazards {
   }
 
   spawnPattern() {
-    const z = -130;
-    const kind = weightedPick(['barrel', 'barrels', 'wreck', 'cones', 'health', 'fury'], (k) => ({ barrel: 3, barrels: 1.5, wreck: 2.2, cones: 1.6, health: 0, fury: 0.25 })[k]);
+    const z = -270;
+    const kind = weightedPick(['barrel', 'barrels', 'wreck', 'cones', 'traffic', 'overtake', 'fury'], (k) => ({ barrel: 2.6, barrels: 1.3, wreck: 1.2, cones: 1.4, traffic: 3.2, overtake: 1, fury: 0.25 })[k]);
     const lane = pick(LANES) + rand(-0.8, 0.8);
-    if (kind === 'barrel') this.spawn('barrel', lane, z);
+    if (kind === 'traffic') {
+      // carro mais lento na sua frente (às vezes dois lado a lado)
+      this.spawn('car', clamp(pick(LANES), -6.5, 6.5), z, { cs: rand(15, 22) });
+      if (chance(0.3)) this.spawn('car', clamp(pick(LANES), -6.5, 6.5), z - 14, { cs: rand(15, 22) });
+    } else if (kind === 'overtake') this.spawn('car', clamp(pick(LANES), -6.5, 6.5), 40, { cs: rand(38, 44) });
+    else if (kind === 'barrel') this.spawn('barrel', lane, z);
     else if (kind === 'barrels') {
       const n = chance(0.5) ? 2 : 3;
       for (let i = 0; i < n; i++) this.spawn('barrel', clamp(lane + (i - 1) * 0.95, -7.6, 7.6), z - i * 0.6);

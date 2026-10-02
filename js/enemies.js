@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { G, rand, pick, clamp, damp, lerp, chance } from './ctx.js';
 import * as Models from './models.js';
 import { MAT } from './builder.js';
-import { toDrum, curveMaterial } from './curve.js';
+import { toWorld, curveMaterial } from './curve.js';
 import { ROAD_HALF } from './world.js';
 import { raySphere } from './projectiles.js';
 
@@ -15,7 +15,7 @@ const _q = new THREE.Quaternion();
 
 export const TYPES = {
   punk: {
-    name: 'Punk', hp: 55, score: 100, cost: 1, minWave: 1, w: 6, lat: 5, ai: 'shooter', range: [-22, -6],
+    name: 'Punk', hp: 55, score: 100, cost: 1, minWave: 1, w: 6, lat: 5, ai: 'shooter', range: [-26, -7],
     look: { bike: 'dirt', hair: ['mohawk', 'spikes', 'mohawk'], weapon: 'pistol' },
     fire: { every: [1.8, 2.8], burst: 1, gap: 0, speed: 32, dmg: 6, spread: 1.1, sfx: 'enemy' },
   },
@@ -25,7 +25,7 @@ export const TYPES = {
     melee: { dmg: 9, every: 1.3 },
   },
   torch: {
-    name: 'Tocha', hp: 65, score: 175, cost: 2, minWave: 3, w: 3, lat: 4, ai: 'thrower', range: [-26, -15],
+    name: 'Tocha', hp: 65, score: 175, cost: 2, minWave: 3, w: 3, lat: 4, ai: 'thrower', range: [-34, -20],
     look: { bike: 'dirt', hair: ['bandana', 'mohawk'], weapon: 'molotov' },
     throwEvery: [2.8, 4.2],
   },
@@ -44,7 +44,7 @@ export const TYPES = {
     fire: { every: [2.4, 3.4], burst: 1, gap: 0, pellets: 7, speed: 32, dmg: 5, spread: 2.2, sfx: 'enemyShotgun' },
   },
   sniper: {
-    name: 'Caveira', hp: 75, score: 350, cost: 3, minWave: 6, w: 1.8, lat: 3, ai: 'sniper', range: [-30, -20],
+    name: 'Caveira', hp: 75, score: 350, cost: 3, minWave: 6, w: 1.8, lat: 3, ai: 'sniper', range: [-46, -30],
     look: { bike: 'standard', hair: ['skull'], weapon: 'rifle' },
   },
 };
@@ -63,7 +63,7 @@ function aimAt(obj, target, maxYaw = Math.PI, maxPitch = 1.2) {
 }
 
 // coordenada plana do jogo -> posição aparente no tambor
-const apparent = toDrum;
+const apparent = toWorld;
 
 function collectMeshes(root) {
   const list = [];
@@ -373,7 +373,7 @@ export class Enemy extends Base {
   ai_shooter(dt) {
     const F = this.T.fire;
     this.fireT -= dt;
-    if (this.burstLeft <= 0 && this.fireT <= 0 && !this.entering && this.z < 12 && this.z > -32) {
+    if (this.burstLeft <= 0 && this.fireT <= 0 && !this.entering && this.z < 12 && this.z > -55) {
       this.burstLeft = F.burst;
       this.burstT = 0;
       this.fireT = rand(F.every[0], F.every[1]) / G.aggro;
@@ -458,7 +458,7 @@ export class Enemy extends Base {
         G.proj.molotov(from, land, 1.1);
       }
     } else arm.rotation.x += 0.3;
-    if (this.throwT <= 0 && this.windT <= 0 && !this.entering && this.z < -8 && this.z > -30) {
+    if (this.throwT <= 0 && this.windT <= 0 && !this.entering && this.z < -8 && this.z > -45) {
       this.windT = 0.5;
       this.throwT = rand(this.T.throwEvery[0], this.T.throwEvery[1]) / G.aggro;
     }
@@ -485,7 +485,7 @@ export class Enemy extends Base {
     this.snT -= dt;
     _t.copy(P.headW);
     const arm = this.shooter.arm;
-    if (this.snState === 'idle' || this.z < -34) {
+    if (this.snState === 'idle' || this.z < -60) {
       L.visible = false;
       _t.y -= 0.3;
       aimAt(arm, _t, Math.PI, 1.3);

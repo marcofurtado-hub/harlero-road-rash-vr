@@ -12,6 +12,7 @@ import { Enemies } from './enemies.js';
 import { Waves } from './waves.js';
 import { Cards, drawTarget, drawInfo, drawTitle, drawToggle } from './upgrades.js';
 import { TruckEvent } from './truck.js';
+import { toDrum, drumHeight } from './curve.js';
 
 // arma que o caminhão derruba ao fim de cada onda (depois disso: turbo em todas)
 const REWARDS = ['magnum', 'tommy', 'bazooka', 'autoshotgun', 'gatling', 'flyingv'];
@@ -191,6 +192,7 @@ G.onKill = (e, info) => {
   else P.heal(40);
   e.center(_v);
   _v.y += 1.2;
+  toDrum(_v);
   let label = `+${Math.round(pts)}`;
   let color = '#ffd21e';
   if (info.boss) {

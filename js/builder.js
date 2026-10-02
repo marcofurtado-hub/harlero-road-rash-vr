@@ -18,6 +18,9 @@ export const MAT = {
   glow: curveMaterial(new THREE.MeshBasicMaterial({ vertexColors: true })),
   flash: curveMaterial(new THREE.MeshBasicMaterial({ color: 0xffffff })),
   far: new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }),
+  // sem enrolar no tambor (pra coisas que já estão no espaço aparente, ex.: projéteis)
+  litFlat: new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }),
+  glowFlat: new THREE.MeshBasicMaterial({ vertexColors: true }),
 };
 
 export function mergeGeos(list) {
@@ -106,18 +109,20 @@ export class Builder {
     return mergeGeos(this[which]);
   }
 
-  build() {
+  build(flat = false) {
     const grp = new THREE.Group();
     grp.userData.meshes = [];
     if (this.lit.length) {
-      const m = new THREE.Mesh(mergeGeos(this.lit), MAT.lit);
-      m.userData.baseMat = MAT.lit;
+      const mat = flat ? MAT.litFlat : MAT.lit;
+      const m = new THREE.Mesh(mergeGeos(this.lit), mat);
+      m.userData.baseMat = mat;
       grp.add(m);
       grp.userData.meshes.push(m);
     }
     if (this.glow.length) {
-      const m = new THREE.Mesh(mergeGeos(this.glow), MAT.glow);
-      m.userData.baseMat = MAT.glow;
+      const mat = flat ? MAT.glowFlat : MAT.glow;
+      const m = new THREE.Mesh(mergeGeos(this.glow), mat);
+      m.userData.baseMat = mat;
       grp.add(m);
       grp.userData.meshes.push(m);
     }

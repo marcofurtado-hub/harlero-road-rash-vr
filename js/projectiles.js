@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { G, rand, clamp } from './ctx.js';
 import { Builder } from './builder.js';
+import { toDrum, fromDrum, drumHeight } from './curve.js';
 
 const _v = new THREE.Vector3();
 const _w = new THREE.Vector3();
@@ -22,8 +23,7 @@ export { raySphere };
 function simpleMesh(build) {
   const b = new Builder();
   build(b);
-  const m = b.build();
-  return m;
+  return b.build(true); // projéteis já voam no espaço aparente
 }
 
 export class Projectiles {
@@ -69,7 +69,9 @@ export class Projectiles {
     b.m.lookAt(_v.copy(from).add(vel));
   }
 
+  // target em coordenadas planas do jogo (ponto na pista)
   molotov(from, target, T = 1.1) {
+    target = toDrum(target.clone());
     const mesh = simpleMesh((b) => {
       b.cyl(0.05, 0.055, 0.22, 7, 0x2f6f2a, 0, 0, 0);
       b.cyl(0.02, 0.025, 0.08, 5, 0x2f6f2a, 0, 0.15, 0);
@@ -143,8 +145,9 @@ export class Projectiles {
       if (shot) {
         G.fx.text('MOLOTOV DE VOLTA!', _v.copy(p).add(_w.set(0, 0.6, 0)), '#ff8a20', 0.45);
         G.explode(p, 4, 70, { fire: true, quiet: true });
-      } else if (p.y < 0.3) {
-        G.hazards.fire(p.x, p.z);
+      } else if (drumHeight(p) < 0.4) {
+        const fl = fromDrum(p.clone());
+        G.hazards.fire(fl.x, fl.z);
       }
     } else if (t.kind === 'rocket') {
       G.explode(p, 3.5, shot ? 60 : 0, { hurtPlayer: !shot, playerDmg: t.dmg });
@@ -176,7 +179,7 @@ export class Projectiles {
         b.m.visible = false;
         continue;
       }
-      if (p.y < 0.02) {
+      if (drumHeight(p) < 0.02) {
         G.fx.dust(p, 2);
         b.on = false;
         b.m.visible = false;
@@ -200,7 +203,7 @@ export class Projectiles {
           if (P.hitSegment(_w, p, 0.25)) {
             P.hurt(16, p);
             this.burst(t, false);
-          } else if (p.y <= 0.05) this.burst(t, false);
+          } else if (drumHeight(p) <= 0.05) this.burst(t, false);
         } else if (t.kind === 'rocket') {
           // teleguiado de leve
           const target = _v.copy(P.headW).setY(P.headW.y - 0.3);
@@ -211,7 +214,7 @@ export class Projectiles {
           G.fx.smoke(_v.copy(p), 1, 0.25);
           if (Math.random() < 0.7) G.fx.fire(p, 1, 0.2, 0.2);
           if (P.hitSegment(_w, p, 0.35)) this.burst(t, false);
-          else if (p.y <= 0.1 || t.age > 7 || p.z > 10) this.burst(t, false);
+          else if (drumHeight(p) <= 0.1 || t.age > 7 || p.z > 10) this.burst(t, false);
         } else if (t.kind === 'grenade') {
           if (!t.straight) t.vel.y -= GRAV * 0.55 * dt;
           p.addScaledVector(t.vel, dt);
@@ -220,8 +223,7 @@ export class Projectiles {
             G.fx.fire(p, 1, 0.18, 0.3);
           } else if (Math.random() < 0.8) G.fx.burst('spark', p, 1, { speed: 0.5, size: 0.06, life: 0.25, anchor: 0.2 });
           const hit = G.enemies.proximity(p, t.r);
-          if (hit || p.y <= 0.05 || t.age > 3.5) {
-            if (p.y < 0.05) p.y = 0.2;
+          if (hit || drumHeight(p) <= 0.05 || t.age > 3.5) {
             this.burst(t, false);
           }
         }

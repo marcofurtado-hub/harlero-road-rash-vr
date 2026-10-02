@@ -2,11 +2,10 @@
 import * as THREE from 'three';
 import { G, rand, pick, chance, clamp, weightedPick } from './ctx.js';
 import * as Models from './models.js';
-import { bendOffset } from './curve.js';
+import { toDrum, fromDrum } from './curve.js';
 import { raySphere } from './projectiles.js';
 
 const _v = new THREE.Vector3();
-const _b = new THREE.Vector2();
 const LANES = [-6, -2, 2, 6];
 
 const ringGeo = new THREE.RingGeometry(0.5, 0.65, 20).rotateX(-Math.PI / 2);
@@ -94,8 +93,7 @@ export class Hazards {
   rayHits(o, d, max, out) {
     for (const h of this.list) {
       if (h.dead || h.kind !== 'barrel') continue;
-      bendOffset(h.z, _b);
-      _v.set(h.x + _b.x, 0.5 + _b.y, h.z);
+      toDrum(_v.set(h.x, 0.5, h.z));
       const t = raySphere(o, d, _v, 0.45);
       if (t >= 0 && t < max) out.push({ t, obj: this.wrap(h), part: 'barrel' });
     }
@@ -112,13 +110,13 @@ export class Hazards {
   explodeBarrel(h, shot) {
     if (h.dead) return;
     h.dead = true;
-    bendOffset(h.z, _b);
-    const p = new THREE.Vector3(h.x + _b.x, 0.6 + _b.y, h.z);
+    const p = toDrum(new THREE.Vector3(h.x, 0.6, h.z));
     G.explode(p, 5.5, 170, { hurtPlayer: true, playerDmg: 22 });
-    if (shot) G.fx.text('KABUM!', p.clone().setY(2), '#ff8a20', 0.6);
+    if (shot) G.fx.text('KABUM!', toDrum(new THREE.Vector3(h.x, 2, h.z)), '#ff8a20', 0.6);
   }
 
-  blast(p, r) {
+  blast(pa, r) {
+    const p = fromDrum(pa.clone()); // explosão vem em coordenada aparente
     for (const h of this.list) {
       if (h.dead || h.kind !== 'barrel') continue;
       if (Math.hypot(h.x - p.x, h.z - p.z) < r * 0.8) {
@@ -178,7 +176,7 @@ export class Hazards {
         h.obj.children[0].rotation.y += dt * 2.2;
       } else if (h.kind === 'fire') {
         for (const c of h.obj.children) c.scale.set(1, 0.7 + 0.4 * Math.abs(Math.sin(h.t * 9 + c.userData.ph)), 1);
-        if (Math.random() < 0.5) G.fx.fire(_v.set(h.x + rand(-1, 1), 0.3, h.z + rand(-1, 1)), 1, 0.5, 1);
+        if (Math.random() < 0.5) G.fx.fire(toDrum(_v.set(h.x + rand(-1, 1), 0.3, h.z + rand(-1, 1))), 1, 0.5, 1);
       }
       // colisão com o jogador
       if (!h.dead && !h.hitP && !h.vel && h.z > -1.1 && h.z < 1.1 && Math.abs(h.x - P.x) < h.hw + 0.35) {
@@ -192,8 +190,8 @@ export class Hazards {
           if (Math.abs(e.z - h.z) < 1.3 && Math.abs(e.x - h.x) < h.hw + 0.45) {
             if (h.kind === 'barrel') this.explodeBarrel(h, false);
             else if (h.kind === 'wreck') {
-              G.fx.spark(_v.set(e.x, 0.8, e.z), 20);
-              G.fx.text('ACIDENTE!', _v.set(e.x, 2.2, e.z), '#ffd21e', 0.5);
+              G.fx.spark(toDrum(_v.set(e.x, 0.8, e.z)), 20);
+              G.fx.text('ACIDENTE!', toDrum(_v.set(e.x, 2.2, e.z)), '#ffd21e', 0.5);
               e.die({ crash: true });
             } else if (!h.burned.has(e)) {
               h.burned.add(e);
@@ -252,7 +250,7 @@ export class Hazards {
   }
 
   spawnPattern() {
-    const z = -270;
+    const z = -130;
     const kind = weightedPick(['barrel', 'barrels', 'wreck', 'cones', 'health', 'fury'], (k) => ({ barrel: 3, barrels: 1.5, wreck: 2.2, cones: 1.6, health: 0, fury: 0.25 })[k]);
     const lane = pick(LANES) + rand(-0.8, 0.8);
     if (kind === 'barrel') this.spawn('barrel', lane, z);

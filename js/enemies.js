@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { G, rand, pick, clamp, damp, lerp, chance } from './ctx.js';
 import * as Models from './models.js';
 import { MAT } from './builder.js';
-import { bendOffset } from './curve.js';
+import { toDrum, curveMaterial } from './curve.js';
 import { ROAD_HALF } from './world.js';
 import { raySphere } from './projectiles.js';
 
@@ -15,7 +15,7 @@ const _q = new THREE.Quaternion();
 
 export const TYPES = {
   punk: {
-    name: 'Punk', hp: 55, score: 100, cost: 1, minWave: 1, w: 6, lat: 5, ai: 'shooter', range: [-26, -7],
+    name: 'Punk', hp: 55, score: 100, cost: 1, minWave: 1, w: 6, lat: 5, ai: 'shooter', range: [-22, -6],
     look: { bike: 'dirt', hair: ['mohawk', 'spikes', 'mohawk'], weapon: 'pistol' },
     fire: { every: [1.8, 2.8], burst: 1, gap: 0, speed: 32, dmg: 6, spread: 1.1, sfx: 'enemy' },
   },
@@ -25,7 +25,7 @@ export const TYPES = {
     melee: { dmg: 9, every: 1.3 },
   },
   torch: {
-    name: 'Tocha', hp: 65, score: 175, cost: 2, minWave: 3, w: 3, lat: 4, ai: 'thrower', range: [-34, -20],
+    name: 'Tocha', hp: 65, score: 175, cost: 2, minWave: 3, w: 3, lat: 4, ai: 'thrower', range: [-26, -15],
     look: { bike: 'dirt', hair: ['bandana', 'mohawk'], weapon: 'molotov' },
     throwEvery: [2.8, 4.2],
   },
@@ -44,7 +44,7 @@ export const TYPES = {
     fire: { every: [2.4, 3.4], burst: 1, gap: 0, pellets: 7, speed: 32, dmg: 5, spread: 2.2, sfx: 'enemyShotgun' },
   },
   sniper: {
-    name: 'Caveira', hp: 75, score: 350, cost: 3, minWave: 6, w: 1.8, lat: 3, ai: 'sniper', range: [-48, -30],
+    name: 'Caveira', hp: 75, score: 350, cost: 3, minWave: 6, w: 1.8, lat: 3, ai: 'sniper', range: [-30, -20],
     look: { bike: 'standard', hair: ['skull'], weapon: 'rifle' },
   },
 };
@@ -62,12 +62,8 @@ function aimAt(obj, target, maxYaw = Math.PI, maxPitch = 1.2) {
   obj.rotation.set(pitch, yaw, 0, 'YXZ');
 }
 
-function apparent(v) {
-  bendOffset(v.z, _b);
-  v.x += _b.x;
-  v.y += _b.y;
-  return v;
-}
+// coordenada plana do jogo -> posição aparente no tambor
+const apparent = toDrum;
 
 function collectMeshes(root) {
   const list = [];
@@ -86,10 +82,10 @@ function disposeTree(root) {
 function makeHpBar(w) {
   const g = new THREE.PlaneGeometry(w, 0.07);
   g.translate(w / 2, 0, 0);
-  const bar = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xff3030, depthTest: false, transparent: true, fog: false }));
+  const bar = new THREE.Mesh(g, curveMaterial(new THREE.MeshBasicMaterial({ color: 0xff3030, depthTest: false, transparent: true, fog: false })));
   bar.position.x = -w / 2;
   const holder = new THREE.Group();
-  const bg = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.04, 0.11), new THREE.MeshBasicMaterial({ color: 0x000000, depthTest: false, transparent: true, opacity: 0.6, fog: false }));
+  const bg = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.04, 0.11), curveMaterial(new THREE.MeshBasicMaterial({ color: 0x000000, depthTest: false, transparent: true, opacity: 0.6, fog: false })));
   holder.add(bg);
   holder.add(bar);
   bar.renderOrder = 6;
@@ -336,7 +332,7 @@ export class Enemy extends Base {
     this.rw.rotation.x = this.fw.rotation.x;
     this.root.position.set(this.x, Math.sin(this.age * 23) * 0.008, this.z);
     this.root.rotation.set(0, -this.vx * 0.04, -this.vx * 0.05);
-    if (Math.random() < 0.12) G.fx.dust(_v.set(this.x, 0.1, this.z + 0.9), 1);
+    if (Math.random() < 0.12) G.fx.dust(apparent(_v.set(this.x, 0.1, this.z + 0.9)), 1);
     this.root.updateMatrixWorld(true);
     this.look();
     this.updateSpheres();
@@ -377,7 +373,7 @@ export class Enemy extends Base {
   ai_shooter(dt) {
     const F = this.T.fire;
     this.fireT -= dt;
-    if (this.burstLeft <= 0 && this.fireT <= 0 && !this.entering && this.z < 12 && this.z > -55) {
+    if (this.burstLeft <= 0 && this.fireT <= 0 && !this.entering && this.z < 12 && this.z > -32) {
       this.burstLeft = F.burst;
       this.burstT = 0;
       this.fireT = rand(F.every[0], F.every[1]) / G.aggro;
@@ -462,7 +458,7 @@ export class Enemy extends Base {
         G.proj.molotov(from, land, 1.1);
       }
     } else arm.rotation.x += 0.3;
-    if (this.throwT <= 0 && this.windT <= 0 && !this.entering && this.z < -8 && this.z > -45) {
+    if (this.throwT <= 0 && this.windT <= 0 && !this.entering && this.z < -8 && this.z > -30) {
       this.windT = 0.5;
       this.throwT = rand(this.T.throwEvery[0], this.T.throwEvery[1]) / G.aggro;
     }
@@ -489,7 +485,7 @@ export class Enemy extends Base {
     this.snT -= dt;
     _t.copy(P.headW);
     const arm = this.shooter.arm;
-    if (this.snState === 'idle') {
+    if (this.snState === 'idle' || this.z < -34) {
       L.visible = false;
       _t.y -= 0.3;
       aimAt(arm, _t, Math.PI, 1.3);
@@ -574,7 +570,7 @@ export class Enemy extends Base {
   }
 
   detonate(killed) {
-    const p = new V(this.x, 0.9, this.z);
+    const p = apparent(new V(this.x, 0.9, this.z));
     this.dying = true;
     this.boomed = true;
     this.deathT = 99;
@@ -592,11 +588,11 @@ export class Enemy extends Base {
     this.root.position.set(this.x, 0, this.z);
     if (!this.boomed && this.deathT > this.boomAt) {
       this.boomed = true;
-      G.explode(new V(this.x, 0.7, this.z), 3.2, 55, { hurtPlayer: true, playerDmg: 8 });
+      G.explode(apparent(new V(this.x, 0.7, this.z)), 3.2, 55, { hurtPlayer: true, playerDmg: 8 });
       this.bikeBody.visible = false;
       this.fw.visible = this.rw.visible = false;
     }
-    if (this.boomed && Math.random() < 0.3) G.fx.smoke(_v.set(this.x, 0.4, this.z), 1, 0.7);
+    if (this.boomed && Math.random() < 0.3) G.fx.smoke(apparent(_v.set(this.x, 0.4, this.z)), 1, 0.7);
     let allGone = true;
     for (const r of this.riders) {
       const g = r.group;
@@ -612,7 +608,7 @@ export class Enemy extends Base {
           g.position.y = 0.3;
           u.vel.y = Math.abs(u.vel.y) * 0.3;
           u.av.multiplyScalar(0.5);
-          G.fx.dust(g.position, 5);
+          G.fx.dust(apparent(_v.copy(g.position)), 5);
           if (u.vel.y < 1.2) u.ground = true;
         }
       } else {
@@ -726,10 +722,10 @@ export class Boss extends Base {
     if (this.atk !== 'gatling') aimAt(this.gunner.arm, _t, Math.PI, 1.3);
     this.updateSpheres();
     if (this.hp < this.maxHp * 0.35 && Math.random() < 0.4) {
-      G.fx.smoke(_v.set(this.x, 2.2, this.z - 2), 1, 0.8);
-      if (Math.random() < 0.5) G.fx.fire(_v.set(this.x + rand(-0.5, 0.5), 2.0, this.z - 2.2), 2, 0.4, 0.6);
+      G.fx.smoke(apparent(_v.set(this.x, 2.2, this.z - 2)), 1, 0.8);
+      if (Math.random() < 0.5) G.fx.fire(apparent(_v.set(this.x + rand(-0.5, 0.5), 2.0, this.z - 2.2)), 2, 0.4, 0.6);
     }
-    if (Math.random() < 0.3) G.fx.dust(_v.set(this.x + rand(-1.2, 1.2), 0.1, this.z + 1.8), 1);
+    if (Math.random() < 0.3) G.fx.dust(apparent(_v.set(this.x + rand(-1.2, 1.2), 0.1, this.z + 1.8)), 1);
     this.attacks(dt);
     if (this.flashT > 0) {
       this.flashT -= dt;
@@ -796,7 +792,7 @@ export class Boss extends Base {
     } else if (this.atk === 'summon') {
       G.enemies.spawn('punk', { from: 'behind' });
       G.enemies.spawn(pick(['punk', 'rammer', 'kamikaze']), { from: 'behind' });
-      G.fx.text('REFORÇOS!', _v.set(this.x, 3.5, this.z), '#ff4040', 0.8);
+      G.fx.text('REFORÇOS!', apparent(_v.set(this.x, 3.5, this.z)), '#ff4040', 0.8);
       this.endAttack();
     }
   }
@@ -863,7 +859,7 @@ export class Boss extends Base {
     }
     this.root.position.x = this.x;
     this.root.position.z = this.z;
-    if (Math.random() < 0.5) G.fx.smoke(_v.set(this.x, 2, this.z), 2, 1.2);
+    if (Math.random() < 0.5) G.fx.smoke(apparent(_v.set(this.x, 2, this.z)), 2, 1.2);
     if (this.deathT > 5 || this.z > 60) this.remove = true;
   }
 }

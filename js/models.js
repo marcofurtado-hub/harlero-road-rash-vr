@@ -685,21 +685,30 @@ export function fencePostGeo() {
 }
 
 export function backdrop() {
-  // anel de mesas distantes (silhueta), sem fog e sem curvatura
+  // duas camadas de mesas distantes atrás da crista do tambor (sem fog e sem curvatura).
+  // A base fica bem abaixo do horizonte; só os topos aparecem. Vão na frente pro sol.
   const b = new Builder();
-  const cols = [0x8f4e5e, 0x7d4458, 0x9a5a62, 0x86506a, 0xa0646a];
-  for (let i = 0; i < 46; i++) {
-    const a = (i / 46) * PI * 2 + rand(-0.05, 0.05);
-    const r = rand(560, 780);
-    const x = Math.sin(a) * r;
-    const z = -Math.cos(a) * r;
-    const w = rand(50, 160);
-    const h = rand(25, 110);
-    const d = rand(40, 100);
-    const col = pick(cols);
-    b.cyl(w * 0.55, w * 0.8, h * 0.45, 6, col, x, h * 0.22 - 4, z, 0, a, 0);
-    b.box(w, h * 0.6, d, col, x, h * 0.7 - 4, z, 0, a, 0);
-    if (Math.random() < 0.5) b.box(w * 0.5, h * 0.25, d * 0.6, col, x + rand(-10, 10), h * 1.1 - 4, z, 0, a, 0);
+  const layers = [
+    { n: 34, r: [880, 980], top: [-30, 45], cols: [0xd9907c, 0xe09a82, 0xcf8676], w: [90, 200] },
+    { n: 30, r: [600, 760], top: [-45, 25], cols: [0x9a5268, 0x8a4a62, 0xa25a6a], w: [60, 150] },
+  ];
+  for (const L of layers) {
+    for (let i = 0; i < L.n; i++) {
+      const a = (i / L.n) * PI * 2 + rand(-0.06, 0.06);
+      const fa = Math.atan2(Math.sin(a), Math.cos(a));
+      if (Math.abs(fa) < 0.2) continue; // deixa o sol aparecer
+      const r = rand(L.r[0], L.r[1]);
+      const x = Math.sin(a) * r;
+      const z = -Math.cos(a) * r;
+      const w = rand(L.w[0], L.w[1]);
+      const top = rand(L.top[0], L.top[1]);
+      const base = -150;
+      const H = top - base;
+      const col = pick(L.cols);
+      b.cyl(w * 0.45, w * 0.75, H, 6, col, x, base + H / 2, z, 0, a, 0);
+      b.box(w * 0.95, 6, w * 0.6, col, x, top - 2, z, 0, a, 0);
+      if (Math.random() < 0.45) b.box(w * 0.4, rand(8, 22), w * 0.35, col, x + rand(-15, 15), top + 5, z, 0, a, 0);
+    }
   }
   const m = new THREE.Mesh(b.geometry(), MAT.far);
   m.frustumCulled = false;

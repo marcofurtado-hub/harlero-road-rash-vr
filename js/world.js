@@ -1,17 +1,17 @@
 import * as THREE from 'three';
 import { G, rand, pick, damp, chance } from './ctx.js';
-import { CURVE, curveMaterial } from './curve.js';
+import { curveMaterial } from './curve.js';
 import { MAT } from './builder.js';
 import * as Models from './models.js';
 import { canvasTex, FW, FB, fitFont, strokeText } from './text.js';
 
 export const ROAD_W = 18;
 export const ROAD_HALF = 8.2; // limite jogável
-const ROAD_LEN = 340;
-const ROAD_Z0 = 30;
+const ROAD_LEN = 336; // em cima do tambor só ~20 m à frente/atrás ficam visíveis
+const ROAD_Z0 = 48;
 const TILE = 24;
-const SPAN = 340; // faixa de reciclagem do cenário
-const FAR = -310;
+const SPAN = 150; // faixa de reciclagem do cenário
+const FAR = -115;
 
 export const HORIZON = 0xf0a070;
 
@@ -173,8 +173,6 @@ const side = () => (Math.random() < 0.5 ? -1 : 1);
 export class World {
   constructor(scene) {
     this.scene = scene;
-    this.bendTarget = new THREE.Vector2();
-    this.bendTimer = 4;
     this.dist = 0;
     this.makeSky();
     this.makeGround();
@@ -236,10 +234,13 @@ export class World {
       new THREE.CircleGeometry(95, 32),
       new THREE.MeshBasicMaterial({ map: sunTex, transparent: true, fog: false, depthWrite: false })
     );
-    sun.position.set(0, 55, -1000);
+    // sol "sentado" na crista do tambor
+    sun.position.set(0, -60, -1000);
+    sun.scale.setScalar(1.35);
     sun.renderOrder = -9;
     this.skyGroup.add(sun);
     const back = Models.backdrop();
+
     back.renderOrder = -8;
     this.skyGroup.add(back);
     this.scene.add(this.skyGroup);
@@ -248,10 +249,10 @@ export class World {
   makeGround() {
     const tex = canvasTex(256, 256, drawSand);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(60, 30);
-    const geo = new THREE.PlaneGeometry(1400, 700, 10, 70);
+    tex.repeat.set(60, 18);
+    const geo = new THREE.PlaneGeometry(1400, 420, 10, 140);
     geo.rotateX(-Math.PI / 2);
-    geo.translate(0, -0.03, 40 - 350);
+    geo.translate(0, -0.03, 70 - 210);
     const mat = curveMaterial(new THREE.MeshLambertMaterial({ map: tex }));
     this.ground = new THREE.Mesh(geo, mat);
     this.ground.frustumCulled = false;
@@ -265,7 +266,7 @@ export class World {
     tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(1, ROAD_LEN / TILE);
     tex.anisotropy = 8;
-    const geo = new THREE.PlaneGeometry(ROAD_W, ROAD_LEN, 1, 150);
+    const geo = new THREE.PlaneGeometry(ROAD_W, ROAD_LEN, 1, 200);
     geo.rotateX(-Math.PI / 2);
     geo.translate(0, 0.0, ROAD_Z0 - ROAD_LEN / 2);
     const mat = curveMaterial(new THREE.MeshLambertMaterial({ map: tex }));
@@ -278,44 +279,45 @@ export class World {
   makeScenery() {
     const s = this.scene;
     const L = MAT.lit;
-    const initZ = () => rand(FAR, 30);
+    // no tambor só ~25 m à frente ficam visíveis: cenário denso e perto, reciclado numa faixa curta
+    const initZ = () => rand(FAR, 35);
     this.pools = [
-      new Pool(s, Models.cactusGeo(), L, 40, (it, init) => {
-        it.x = side() * rand(12, 70);
+      new Pool(s, Models.cactusGeo(), L, 34, (it, init) => {
+        it.x = side() * rand(11, 45);
         it.z = init ? initZ() : it.z - SPAN;
         it.ry = rand(0, 6.28);
         it.s = rand(0.7, 1.5);
       }),
-      new Pool(s, Models.rockGeo(), L, 30, (it, init) => {
-        it.x = side() * rand(11, 90);
+      new Pool(s, Models.rockGeo(), L, 26, (it, init) => {
+        it.x = side() * rand(10.5, 50);
         it.z = init ? initZ() : it.z - SPAN;
         it.ry = rand(0, 6.28);
-        it.s = rand(0.5, 2.5);
+        it.s = rand(0.5, 2.3);
         it.sy = rand(0.6, 1.4);
       }),
-      new Pool(s, Models.bushGeo(), L, 40, (it, init) => {
-        it.x = side() * rand(10, 50);
+      new Pool(s, Models.bushGeo(), L, 34, (it, init) => {
+        it.x = side() * rand(10, 35);
         it.z = init ? initZ() : it.z - SPAN;
         it.ry = rand(0, 6.28);
         it.s = rand(0.6, 1.4);
       }),
-      new Pool(s, Models.poleGeo(), L, 9, (it, init) => {
+      new Pool(s, Models.poleGeo(), L, 5, (it, init) => {
         it.x = -12.5;
-        it.z = init ? 30 - it.i * 40 : it.z - 9 * 40;
+        it.z = init ? 35 - it.i * 30 : it.z - 5 * 30;
         it.ry = 0;
       }),
-      new Pool(s, Models.fencePostGeo(), L, 50, (it, init) => {
+      new Pool(s, Models.fencePostGeo(), L, 22, (it, init) => {
         it.x = 15.5;
-        it.z = init ? 30 - it.i * 6.8 : it.z - 50 * 6.8;
+        it.z = init ? 35 - it.i * 6.8 : it.z - 22 * 6.8;
         it.ry = 0;
         it.s = 1;
       }),
-      new Pool(s, Models.mesaGeo(), L, 10, (it, init) => {
-        it.x = side() * rand(110, 220);
-        it.z = init ? rand(-420, 20) : it.z - 460;
+      new Pool(s, Models.mesaGeo(), L, 6, (it, init) => {
+        it.x = side() * rand(55, 90);
+        it.z = init ? initZ() : it.z - SPAN;
         it.ry = rand(0, 6.28);
-        it.s = rand(0.7, 1.6);
-        it.sy = rand(0.5, 1.3);
+        it.s = rand(0.35, 0.7);
+        it.sy = rand(0.6, 1.4);
       }),
     ];
     // placas US 66
@@ -324,7 +326,7 @@ export class World {
     shieldGeo.translate(0, 2.6, 0);
     const placeSign = (it, init) => {
       it.x = 10.3;
-      it.z = init ? -60 - it.i * 170 : it.z - 2 * 170;
+      it.z = init ? -40 - it.i * 75 : it.z - 2 * 75;
       it.ry = -0.25;
     };
     this.pools.push(new Pool(s, shieldGeo, shieldMat, 2, placeSign));
@@ -347,7 +349,7 @@ export class World {
     }
     // lanchonete / posto
     this.diner = Models.dinerBuilding();
-    this.diner.position.set(-30, 0, -600);
+    this.diner.position.set(-30, 0, -200);
     this.diner.rotation.y = Math.PI / 2;
     s.add(this.diner);
     // neon do diner
@@ -384,7 +386,7 @@ export class World {
 
   respawnBillboard(grp, init, i = 0) {
     const sd = side();
-    grp.position.set(sd * rand(14, 22), 0, init ? -120 - i * 260 : -330 - rand(100, 500));
+    grp.position.set(sd * rand(14, 22), 0, init ? -60 - i * 90 : -120 - rand(20, 260));
     grp.rotation.y = -sd * rand(0.25, 0.5);
     const { board, mats } = grp.userData;
     board.material = pick(mats);
@@ -392,7 +394,7 @@ export class World {
 
   resetTumble(m, init) {
     const sd = side();
-    m.position.set(sd * rand(12, 22), 0.45, init ? rand(-250, -60) : rand(-280, -150));
+    m.position.set(sd * rand(12, 22), 0.45, init ? rand(-90, -30) : rand(-120, -70));
     m.userData.vx = -sd * rand(2, 5);
     m.scale.setScalar(rand(0.8, 1.4));
   }
@@ -402,7 +404,7 @@ export class World {
     const dz = sp * dt;
     this.dist += dz;
     this.roadTex.offset.y += dz / TILE;
-    this.groundTex.offset.y += (dz / 700) * 30;
+    this.groundTex.offset.y += (dz / 420) * 18;
     for (const p of this.pools) p.update(dz);
     for (const b of this.billboards) {
       b.position.z += dz;
@@ -410,7 +412,7 @@ export class World {
     }
     this.diner.position.z += dz;
     if (this.diner.position.z > 60) {
-      this.diner.position.set(side() * 32, 0, -400 - rand(400, 1400));
+      this.diner.position.set(side() * 30, 0, -150 - rand(150, 700));
       this.diner.rotation.y = this.diner.position.x < 0 ? Math.PI / 2 : -Math.PI / 2;
     }
     for (const t of this.tumbles) {
@@ -421,16 +423,6 @@ export class World {
       t.position.y = 0.45 + Math.abs(Math.sin(G.time * 4 + t.id)) * 0.3;
       if (t.position.z > 30 || Math.abs(t.position.x) > 30) this.resetTumble(t, false);
     }
-    // curvatura procedural da estrada
-    this.bendTimer -= dt;
-    if (this.bendTimer <= 0) {
-      this.bendTimer = rand(5, 12);
-      const straight = chance(0.25);
-      this.bendTarget.set(straight ? 0 : rand(-0.0022, 0.0022), chance(0.4) ? rand(-0.00022, 0.0007) : 0);
-    }
-    const B = CURVE.uBend.value;
-    B.x = damp(B.x, this.bendTarget.x, 0.25, dt);
-    B.y = damp(B.y, this.bendTarget.y, 0.25, dt);
     this.skyGroup.position.x = G.player ? G.player.x : 0;
   }
 }

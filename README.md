@@ -46,7 +46,7 @@ Para testar só no PC também dá pra usar `python3 serve.py --http` e abrir `ht
 
 ## O que tem no jogo
 
-- **Estrada infinita procedural**: curvas e morros, deserto, mesas, cactos, postes, placas US 66, outdoors, lanchonete com neon, tumbleweeds, pôr do sol retrô.
+- **Mundo num tambor gigante**: a Rota 66 infinita roda em cima de um cilindro enorme que gira na sua direção. Punks, cactos, outdoors e o caminhão surgem pela crista, e o sol retrô fica "sentado" na crista com as mesas do deserto ao fundo.
 - **Ondas** com dificuldade crescente (mais inimigos, mais vida, mais dano, mira melhor) e **chefão a cada 5 ondas**.
 - **7 tipos de inimigos + chefão**:
   - **Punk**: moicano e pistola. O básico.
@@ -82,7 +82,7 @@ js/fx.js          partículas, traçantes, explosões, textos
 js/audio.js       música e efeitos 100% sintetizados (Web Audio)
 js/hud.js         painel no tanque, letreiros, barra do chefão
 js/models.js      todos os modelos 3D procedurais (low-poly)
-js/curve.js       shader de "mundo curvo" (curvas e morros)
+js/curve.js       shader do tambor (enrola o mundo plano num cilindro gigante)
 ```
 
 Dicas de performance: tudo é low-poly com cor por vértice (poucas draw calls), sem sombras dinâmicas, com foveated rendering. Se quiser mais nitidez no Quest 3, abra com `?scale=1.3` no fim do endereço.

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { G, rand, clamp, damp } from './ctx.js';
 import * as Models from './models.js';
+import { DRUM_R } from './curve.js';
 
 // dmg = por projétil (beam: por segundo); rate = tiros/s
 export const WEAPONS = {
@@ -41,9 +42,17 @@ const flashTex = (() => {
   return t;
 })();
 
+// interseção do raio com a superfície do tambor (cilindro de eixo X, centro em y = -R)
 function groundT(o, d) {
-  if (d.y >= -1e-4) return Infinity;
-  return -o.y / d.y;
+  const R = DRUM_R;
+  const oy = o.y + R;
+  const a = d.y * d.y + d.z * d.z;
+  const b = 2 * (oy * d.y + o.z * d.z);
+  const c = oy * oy + o.z * o.z - R * R;
+  const disc = b * b - 4 * a * c;
+  if (a < 1e-9 || disc < 0) return Infinity;
+  const t = (-b - Math.sqrt(disc)) / (2 * a);
+  return t > 0 ? t : Infinity;
 }
 
 function spreadDir(dir, s, out) {

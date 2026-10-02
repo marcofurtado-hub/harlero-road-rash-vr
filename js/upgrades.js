@@ -232,6 +232,23 @@ export function drawInfo(g, w, h, title, lines, color = '#ffd21e') {
   }
 }
 
+export function drawToggle(g, w, h, label, on) {
+  roundRect(g, 6, 6, w - 12, h - 12, 26);
+  g.fillStyle = on ? '#123a1c' : '#3a1212';
+  g.fill();
+  g.lineWidth = 10;
+  g.strokeStyle = on ? '#40d060' : '#e03030';
+  g.stroke();
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  setFont(g, 40, FB);
+  g.fillStyle = '#ffe6b0';
+  g.fillText(label, w / 2, h * 0.34);
+  setFont(g, 58, FB);
+  g.fillStyle = on ? '#60ff80' : '#ff5050';
+  g.fillText(on ? 'LIGADA' : 'DESLIGADA', w / 2, h * 0.66);
+}
+
 export function drawTitle(g, w, h) {
   g.textAlign = 'center';
   g.textBaseline = 'middle';
@@ -293,6 +310,16 @@ export class Cards {
     return it;
   }
 
+  redraw(it) {
+    const old = it.mesh.material.map;
+    it.mesh.material.map = canvasTex(it.o.cw || 420, it.o.ch || 580, (g, w, h) => it.o.draw(g, w, h));
+    it.mesh.material.needsUpdate = true;
+    if (old) old.dispose();
+  }
+  redrawToggles() {
+    for (const it of this.items) if (it.o.toggle) this.redraw(it);
+  }
+
   show(list) {
     this.clear();
     list.forEach((o) => this.add(o));
@@ -331,6 +358,15 @@ export class Cards {
       isCard: true,
       takeHit: (dmg, part, pt) => {
         if (pt) G.fx.spark(pt, 6);
+        if (it.o.toggle) {
+          // interruptor: alterna sem fechar o menu
+          if (this.armT > 0 || this.picked || G.time - (it.lastT || -9) < 0.6) return { solid: true };
+          it.lastT = G.time;
+          it.o.onToggle();
+          this.redraw(it);
+          G.audio.play('grab');
+          return { solid: true };
+        }
         if (!it.o.onPick || this.armT > 0 || this.picked) return { solid: true };
         this.picked = it;
         it.chosen = true;
@@ -351,7 +387,7 @@ export class Cards {
     if (!this.picked) {
       // destaca a carta para onde alguma arma está mirando
       for (const it of this.items) {
-        if (!it.o.onPick) continue;
+        if (!it.o.onPick && !it.o.toggle) continue;
         for (const r of rays) {
           tmp.length = 0;
           const save = this.items;

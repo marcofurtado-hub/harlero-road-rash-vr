@@ -10,7 +10,7 @@ import { Hazards } from './hazards.js';
 import { Projectiles } from './projectiles.js';
 import { Enemies } from './enemies.js';
 import { Waves } from './waves.js';
-import { Cards, drawTarget, drawInfo, drawTitle } from './upgrades.js';
+import { Cards, drawTarget, drawInfo, drawTitle, drawToggle } from './upgrades.js';
 import { TruckEvent } from './truck.js';
 
 // arma que o caminhão derruba ao fim de cada onda (depois disso: turbo em todas)
@@ -68,14 +68,19 @@ class Game {
   showTitleCards() {
     const vr = G.xr;
     const how = vr
-      ? ['#PILOTAR', 'Mão esquerda: segure GRIP e gire/mova o controle. Ou incline a cabeça!', '#ATIRAR', 'Mão direita: GATILHO • munição infinita', '#TROCAR ARMA', 'A / B', '#EXTRAS', '↑↓ acelera/freia • X buzina • segure Y recentraliza']
-      : ['#MIRAR / ATIRAR', 'Mouse + clique', '#PILOTAR', 'A / D  •  W acelera  S freia', '#ARMAS', '1 2 3 4 ou rodinha', '#BUZINA', 'Espaço'];
+      ? ['#PILOTAR', 'Mão esquerda: segure GRIP e gire/mova o controle. Ou incline a cabeça!', '#ATIRAR', 'Mão direita: GATILHO • munição infinita', '#TROCAR ARMA', 'A / B', '#EXTRAS', '↑↓ acelera/freia • X buzina • Y recentraliza • clique no analógico esquerdo: música']
+      : ['#MIRAR / ATIRAR', 'Mouse + clique', '#PILOTAR', 'A / D  •  W acelera  S freia', '#ARMAS', '1 2 3 4 ou rodinha', '#EXTRAS', 'Espaço buzina • M liga/desliga música'];
     G.cards.show([
-      { ghost: true, w: 4.2, h: 1.65, cw: 1024, ch: 400, y: 3.05, z: -4.8, draw: drawTitle, face: false },
-      { x: -1.6, y: 1.25, z: -3.4, draw: (g, w, h) => drawInfo(g, w, h, 'COMO JOGAR', how) },
-      { x: 0, y: 1.25, z: -3.6, draw: (g, w, h) => drawTarget(g, w, h, 'ACELERAR!', vr ? 'pegue a arma e atire aqui' : 'atire aqui pra começar'), onPick: () => this.start() },
+      { ghost: true, w: 4.2, h: 1.65, cw: 1024, ch: 400, y: 3.35, z: -4.8, draw: drawTitle, face: false },
+      { x: -1.6, y: 1.55, z: -3.4, draw: (g, w, h) => drawInfo(g, w, h, 'COMO JOGAR', how) },
+      { x: 0, y: 1.55, z: -3.6, draw: (g, w, h) => drawTarget(g, w, h, 'ACELERAR!', 'atire aqui pra começar'), onPick: () => this.start() },
       {
-        x: 1.6, y: 1.25, z: -3.4,
+        toggle: true, x: 0, y: 0.47, z: -3.4, w: 0.9, h: 0.38, cw: 420, ch: 180,
+        draw: (g, w, h) => drawToggle(g, w, h, '🎸 MÚSICA', G.audio.musicOn),
+        onToggle: () => G.audio.toggleMusic(),
+      },
+      {
+        x: 1.6, y: 1.55, z: -3.4,
         draw: (g, w, h) => drawInfo(g, w, h, 'RECORDE', [`#PONTOS`, `${this.best.score}`, '#MAIOR ONDA', `${this.best.wave}`, '', 'Dica: tiro na cabeça dá crítico. Atire nos barris vermelhos perto dos punks!']),
       },
     ]);
@@ -335,6 +340,17 @@ function setupUI(renderer) {
   const btnPC = $('btnPC');
   const msg = $('vrmsg');
   const canvas = renderer.domElement;
+  const btnMusic = $('btnMusic');
+  G.onMusicChange = (on) => {
+    btnMusic.textContent = on ? '🎵 Música: ligada' : '🔇 Música: desligada';
+    G.cards.redrawToggles();
+    G.hud.announce(on ? 'MÚSICA LIGADA' : 'MÚSICA DESLIGADA', '', on ? '#60ff80' : '#ff5050', 1.2);
+  };
+  btnMusic.textContent = G.audio.musicOn ? '🎵 Música: ligada' : '🔇 Música: desligada';
+  btnMusic.addEventListener('click', () => {
+    G.audio.init();
+    G.audio.toggleMusic();
+  });
   const dash = G.hud.canvas;
   dash.classList.add('dash2d');
   document.body.appendChild(dash);
@@ -441,6 +457,7 @@ function setupUI(renderer) {
     if (e.code.startsWith('Digit')) G.player.deskEquip(parseInt(e.code.slice(5), 10) - 1);
     if (e.code === 'KeyR' && desk.hand.held) desk.hand.held.startReload();
     if (e.code === 'KeyQ') G.player.deskCycle(1);
+    if (e.code === 'KeyM') G.audio.toggleMusic();
     if (e.code === 'Space') {
       G.audio.play('horn');
       e.preventDefault();

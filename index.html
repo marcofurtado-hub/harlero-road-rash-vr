@@ -32,6 +32,7 @@
     button:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 3px 0 #000; }
     button:disabled { filter: grayscale(1) brightness(.6); cursor: not-allowed; }
     #btnPC { background: linear-gradient(#60e8ff, #2a8ab0); }
+    button.small { font-size: 16px; padding: 10px 16px; background: linear-gradient(#e0d0b0, #a08a60); }
     #vrmsg { min-height: 1.2em; opacity: .85; font-size: 15px; }
     .help { max-width: 760px; font-size: 14px; opacity: .8; line-height: 1.5; }
     .help b { color: var(--hot); }
@@ -59,12 +60,13 @@
     <div class="btns">
       <button id="btnVR" disabled>🥽 Entrar no VR</button>
       <button id="btnPC">🖥️ Jogar no PC</button>
+      <button id="btnMusic" class="small">🎵 Música: ligada</button>
     </div>
     <div id="vrmsg">Verificando suporte a VR…</div>
     <div class="help">
       <b>Quest:</b> arma sempre na <b>mão direita</b> (gatilho atira, munição infinita, <b>A/B</b> troca) •
-      <b>mão esquerda</b>: segure <b>GRIP</b> e gire/mova o controle pra pilotar — ou só <b>incline a cabeça</b> • analógico ↑ acelera / ↓ freia • <b>X</b> buzina • segure <b>Y</b> pra recentralizar.<br />
-      <b>PC:</b> mouse mira/atira • <b>A/D</b> pilota • <b>W/S</b> acelera/freia • <b>1-4</b> ou rodinha troca arma • <b>Espaço</b> buzina.<br />
+      <b>mão esquerda</b>: segure <b>GRIP</b> e gire/mova o controle pra pilotar — ou só <b>incline a cabeça</b> • analógico ↑ acelera / ↓ freia • <b>X</b> buzina • segure <b>Y</b> pra recentralizar • clique no <b>analógico esquerdo</b> liga/desliga a música.<br />
+      <b>PC:</b> mouse mira/atira • <b>A/D</b> pilota • <b>W/S</b> acelera/freia • <b>1-4</b> ou rodinha troca arma • <b>Espaço</b> buzina • <b>M</b> liga/desliga a música.<br />
       Atire nas cartas pra começar e pra escolher upgrades. Use fone — o rock é gerado ao vivo. 🤘
     </div>
   </div>

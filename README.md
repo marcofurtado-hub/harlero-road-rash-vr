@@ -36,10 +36,11 @@ python3 serve.py
 | Acelerar / frear | analógico ↑ / ↓ |
 | Buzina | **X** |
 | Recentralizar | segure **Y** |
+| Ligar/desligar música | clique no **analógico esquerdo** (ou atire na carta 🎸 MÚSICA no menu) |
 
 Sem menus de upgrade: **cada punk derrubado recupera um pouco de vida** e, no fim de cada onda, um **caminhão desgovernado** passa costurando a pista, derruba um baú e a arma nova voa direto pra sua mão. Ordem: Escopeta Cano Duplo (início) → Magnum .50 → Metralhadora → Bazuca → Escopeta Automática → Mini-Gatling → Flying V Laser. Depois disso, cada baú turbina todas as armas.
 
-**PC (para testar sem o headset)**: mouse mira e atira (clique no jogo pra prender o mouse; se o navegador não deixar, a mira segue o cursor), **A/D** pilota, **W/S** acelera/freia, **1-4** ou rodinha troca a arma, **Espaço** buzina.
+**PC (para testar sem o headset)**: mouse mira e atira (clique no jogo pra prender o mouse; se o navegador não deixar, a mira segue o cursor), **A/D** pilota, **W/S** acelera/freia, **1-4** ou rodinha troca a arma, **Espaço** buzina, **M** liga/desliga a música.
 
 Para testar só no PC também dá pra usar `python3 serve.py --http` e abrir `http://localhost:8000`.
 

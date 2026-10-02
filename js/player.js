@@ -444,6 +444,7 @@ export class Player {
           if (edge(5)) this.cycle(-1); // B: arma anterior
         } else {
           if (edge(4)) G.audio.play('horn'); // X: buzina
+          if (edge(3)) G.audio.toggleMusic(); // clique no analógico: música
           if (press(5)) {
             // Y segurado: recentraliza
             this.recenterT += realDt;
@@ -454,7 +455,7 @@ export class Player {
             }
           } else this.recenterT = 0;
         }
-        for (const k of [0, 4, 5]) h.btnPrev[k] = press(k);
+        for (const k of [0, 3, 4, 5]) h.btnPrev[k] = press(k);
       }
       if (this.calibrateT > 0) {
         this.calibrateT -= realDt;

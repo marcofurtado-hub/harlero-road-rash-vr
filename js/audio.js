@@ -111,7 +111,7 @@ class Music {
     if (ctx.state !== 'running') return;
     if (this.nextTime < ctx.currentTime - 0.3) this.nextTime = ctx.currentTime + 0.05;
     while (this.nextTime < ctx.currentTime + 0.12) {
-      this.playStep(this.step % 16, this.nextTime);
+      if (this.a.musicOn) this.playStep(this.step % 16, this.nextTime);
       this.nextTime += this.stepDur;
       this.step++;
       if (this.step % 16 === 0) {
@@ -169,6 +169,28 @@ export class AudioSys {
   constructor() {
     this.ctx = null;
     this.listener = { x: 0, y: 1.4, z: 0, rx: 1, ry: 0, rz: 0 };
+    let saved = null;
+    try {
+      saved = localStorage.getItem('harlero_music');
+    } catch (e) {
+      /* sem storage */
+    }
+    this.musicOn = saved !== 'off';
+  }
+
+  // liga/desliga só a trilha (efeitos, motor e tiros continuam)
+  setMusic(on) {
+    this.musicOn = on;
+    try {
+      localStorage.setItem('harlero_music', on ? 'on' : 'off');
+    } catch (e) {
+      /* sem storage */
+    }
+    if (G.onMusicChange) G.onMusicChange(on);
+  }
+  toggleMusic() {
+    this.setMusic(!this.musicOn);
+    return this.musicOn;
   }
 
   init() {

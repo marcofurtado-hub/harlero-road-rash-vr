@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Harlero Road Rash 66</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Rye&display=swap" rel="stylesheet" />
+  <style>
+    :root { --bg: #160a06; --ink: #ffe6b0; --hot: #ff7a1e; --red: #e02020; --cyan: #40e8ff; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); overflow: hidden; font-family: Arial, sans-serif; }
+    #app canvas { display: block; }
+    #overlay {
+      position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+      background: radial-gradient(ellipse at 50% 90%, rgba(255,120,40,.55), rgba(22,10,6,.92) 60%);
+      text-align: center; padding: 16px; z-index: 10;
+    }
+    #overlay.hidden, #pause.hidden { display: none; }
+    h1 { font-family: Rye, Georgia, serif; font-size: clamp(48px, 11vw, 120px); margin: 0; line-height: .95;
+      background: linear-gradient(#fff3a0, #ffa020 55%, #e02020); -webkit-background-clip: text; background-clip: text; color: transparent;
+      filter: drop-shadow(0 6px 0 #000); }
+    h2 { font-family: Bungee, Impact, sans-serif; color: var(--cyan); margin: 0; font-size: clamp(22px, 4vw, 40px); text-shadow: 0 3px 0 #000; }
+    .tag { font-style: italic; font-family: Georgia, serif; opacity: .9; margin: 0; }
+    .btns { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+    button {
+      font-family: Bungee, Impact, sans-serif; font-size: 22px; padding: 16px 26px; border-radius: 14px; border: 4px solid #000; cursor: pointer;
+      background: linear-gradient(#ffb040, #e04010); color: #1a0a05; box-shadow: 0 6px 0 #000; transition: transform .08s;
+    }
+    button:hover:not(:disabled) { transform: translateY(-2px); }
+    button:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 3px 0 #000; }
+    button:disabled { filter: grayscale(1) brightness(.6); cursor: not-allowed; }
+    #btnPC { background: linear-gradient(#60e8ff, #2a8ab0); }
+    #vrmsg { min-height: 1.2em; opacity: .85; font-size: 15px; }
+    .help { max-width: 760px; font-size: 14px; opacity: .8; line-height: 1.5; }
+    .help b { color: var(--hot); }
+    #pause { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.55); z-index: 9;
+      font-family: Bungee, Impact, sans-serif; font-size: 30px; cursor: pointer; text-align: center; padding: 16px; }
+    #cross { position: fixed; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; pointer-events: none; display: none; z-index: 5; }
+    #cross::before, #cross::after { content: ''; position: absolute; background: #fff; box-shadow: 0 0 2px #000, 0 0 4px #000; }
+    #cross::before { left: 10px; top: 0; width: 2px; height: 22px; }
+    #cross::after { top: 10px; left: 0; height: 2px; width: 22px; }
+    body.playing #cross { display: block; }
+    body.playing #app canvas { cursor: none; }
+    .dash2d { position: fixed; left: 12px; bottom: 12px; width: min(300px, 38vw); height: auto; z-index: 4; display: none; border-radius: 18px; }
+    body.playing .dash2d { display: block; }
+    #fps { position: fixed; left: 8px; top: 6px; font: 12px monospace; opacity: .5; z-index: 4; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="cross"></div>
+  <div id="fps"></div>
+  <div id="overlay">
+    <h1>HARLERO</h1>
+    <h2>ROAD RASH 66</h2>
+    <p class="tag">A estrada é sua. Os punks discordam.</p>
+    <div class="btns">
+      <button id="btnVR" disabled>🥽 Entrar no VR</button>
+      <button id="btnPC">🖥️ Jogar no PC</button>
+    </div>
+    <div id="vrmsg">Verificando suporte a VR…</div>
+    <div class="help">
+      <b>Quest:</b> leve a mão até o coldre e aperte <b>GRIP</b> pra pegar a arma (aperte de novo perto do coldre pra guardar/trocar) •
+      <b>Gatilho</b> atira • <b>Analógico</b> pilota (↑ acelera, ↓ freia) • <b>A/X</b> buzina • segure <b>B/Y</b> pra recentralizar.<br />
+      <b>PC:</b> mouse mira/atira • <b>A/D</b> pilota • <b>W/S</b> acelera/freia • <b>1-4</b> ou rodinha troca arma • <b>R</b> recarrega • <b>Espaço</b> buzina.<br />
+      Atire nas cartas pra começar e pra escolher upgrades. Use fone — o rock é gerado ao vivo. 🤘
+    </div>
+  </div>
+  <div id="pause" class="hidden">PAUSADO<br />clique pra voltar pra estrada</div>
+  <script type="importmap">
+    { "imports": { "three": "./lib/three.module.js" } }
+  </script>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>

@@ -4,7 +4,11 @@ Jogo de tiro em VR (WebXR) para o **Meta Quest 2/3**: você pilota uma moto numa
 
 Não tem build, não tem dependências: é HTML + JavaScript puro com o Three.js (r170) vendorizado em `lib/`.
 
-## Como jogar no Quest
+## Jogar agora
+
+No **Meta Quest Browser**, abra **https://marcofurtado-hub.github.io/harlero-road-rash-vr/** e clique em **🥽 Entrar no VR**. Também está na VR ZONE do [Surtados Games](https://marcofurtado-hub.github.io/#vr).
+
+## Rodar localmente no Quest
 
 O WebXR só funciona em **HTTPS** (ou `localhost`). O `serve.py` gera um certificado autoassinado e serve o jogo na sua rede local:
 

@@ -161,12 +161,14 @@ function armWeapon(b, weapon) {
   let muzzle = new THREE.Vector3(0, 0.02, -0.7);
   switch (weapon) {
     case 'pistol':
-      b.box(0.04, 0.06, 0.17, 0x111111, 0, 0.02, -0.62);
-      muzzle.set(0, 0.03, -0.72);
+      b.box(0.04, 0.06, 0.17, C.chrome, 0, 0.03, -0.62);
+      b.box(0.035, 0.08, 0.04, 0x3a2010, 0, -0.03, -0.55);
+      muzzle.set(0, 0.04, -0.71);
       break;
     case 'smg':
-      b.box(0.05, 0.08, 0.3, 0x111111, 0, 0.02, -0.68);
-      b.box(0.03, 0.12, 0.04, 0x111111, 0, -0.06, -0.62);
+      b.box(0.05, 0.08, 0.3, 0x2a2a2a, 0, 0.02, -0.68);
+      b.box(0.02, 0.02, 0.3, C.chrome, 0, 0.065, -0.68);
+      b.box(0.03, 0.14, 0.04, C.chrome, 0, -0.07, -0.64);
       muzzle.set(0, 0.03, -0.85);
       break;
     case 'shotgun':
@@ -238,17 +240,21 @@ export function rider(o) {
   b.cyl(0.07, 0.07, 0.025, 8, 0xf0ead8, 0, 1.27 - PY, 0.16 + 0.15 * k - PZ, PI / 2 - 0.25, 0, 0);
   // ombreiras com spikes pros brutos
   if (o.spikes) for (const s of [-1, 1]) b.cone(0.04, 0.1, 4, C.chrome, s * 0.25 * k, 1.5 - PY, 0.08 - PZ, 0, 0, -s * 0.8);
-  // braço esquerdo no guidão
-  if (o.pose === 'sit') {
-    b.bar(P(-0.25 * k, 1.42, 0.06), P(-0.2, 1.0, -0.25), 0.11 * k, o.jacket);
-  } else {
-    b.bar(P(-0.25 * k, 1.42, 0.06), P(-0.33, o.barY ?? 1.08, -0.57), 0.11 * k, o.jacket);
-    b.box(0.09, 0.09, 0.1, C.dleather, -0.33, (o.barY ?? 1.08) - PY, -0.58 - PZ);
-  }
-  if (!o.weapon) {
-    b.bar(P(0.25 * k, 1.42, 0.06), P(0.33, o.barY ?? 1.08, -0.57), 0.11 * k, o.jacket);
-    b.box(0.09, 0.09, 0.1, C.dleather, 0.33, (o.barY ?? 1.08) - PY, -0.58 - PZ);
-  }
+  // ombros bem marcados
+  for (const sd of [-1, 1]) b.sph(0.1 * k, o.jacket, sd * 0.26 * k, 1.44 - PY, 0.08 - PZ, null, 6, 5);
+  // braço(s) no guidão: manga + antebraço de pele + munhequeira + luva
+  const barArm = (sd) => {
+    const sh = P(sd * 0.27 * k, 1.42, 0.06);
+    const hand = o.pose === 'sit' ? P(sd * 0.22, 1.02, -0.25) : P(sd * 0.36, o.barY ?? 1.08, -0.57);
+    const el = [(sh[0] + hand[0]) / 2 + sd * 0.1, (sh[1] + hand[1]) / 2 - 0.06, (sh[2] + hand[2]) / 2];
+    b.bar(sh, el, 0.13 * k, o.jacket);
+    b.bar(el, hand, 0.1 * k, o.skin);
+    b.bar(el, [el[0] + (hand[0] - el[0]) * 0.25, el[1] + (hand[1] - el[1]) * 0.25, el[2] + (hand[2] - el[2]) * 0.25], 0.115 * k, o.jacket);
+    b.box(0.12, 0.12, 0.13, C.dleather, hand[0], hand[1], hand[2]);
+    b.box(0.13, 0.04, 0.06, C.chrome, hand[0] * 0.9 + el[0] * 0.1, hand[1] * 0.9 + el[1] * 0.1 + 0.02, hand[2] * 0.9 + el[2] * 0.1 + 0.04);
+  };
+  barArm(-1);
+  if (!o.weapon) barArm(1);
   const body = b.build();
   grp.add(body);
 
@@ -262,9 +268,18 @@ export function rider(o) {
   let muzzle = null;
   if (o.weapon) {
     const ab = new Builder();
-    ab.bar([0, 0, 0], [0, -0.02, -0.46], 0.11 * k, o.jacket);
-    ab.box(0.09, 0.09, 0.1, C.dleather, 0, -0.02, -0.52);
-    const mz = armWeapon(ab, o.weapon);
+    ab.bar([0, 0, 0], [0, -0.03, -0.25], 0.13 * k, o.jacket);
+    ab.bar([0, -0.03, -0.25], [0, -0.02, -0.47], 0.1 * k, o.skin);
+    ab.box(0.12, 0.05, 0.05, C.chrome, 0, -0.02, -0.44);
+    ab.box(0.12, 0.12, 0.13, C.dleather, 0, -0.02, -0.53);
+    // arma 1.7x maior, escalada a partir da mão, pra ler bem de longe
+    const wb = new Builder();
+    const mz = armWeapon(wb, o.weapon);
+    const hp = new THREE.Vector3(0, -0.02, -0.52);
+    const sm = new THREE.Matrix4().makeTranslation(hp.x, hp.y, hp.z).multiply(new THREE.Matrix4().makeScale(1.7, 1.7, 1.7)).multiply(new THREE.Matrix4().makeTranslation(-hp.x, -hp.y, -hp.z));
+    for (const g of wb.lit) ab.lit.push(g.applyMatrix4(sm));
+    for (const g of wb.glow) ab.glow.push(g.applyMatrix4(sm));
+    mz.applyMatrix4(sm);
     arm = ab.build();
     arm.position.set(...P(0.25 * k, 1.42, 0.06));
     grp.add(arm);
@@ -337,6 +352,54 @@ export function bossTruck(color) {
     return g;
   };
   return { body, front: axle(-1.9), rear: axle(1.75), tanks: [tank(-0.6), tank(0.6)] };
+}
+
+// ---------------------------------------------------------------- caminhão desgovernado + baú de armas
+export function runawayTruck() {
+  const b = new Builder();
+  const col = pick([0x2a6ab0, 0xb0302a, 0xe0b020, 0x3a8a4a]);
+  b.box(2.2, 0.4, 7.2, C.black, 0, 0.75, 0);
+  b.box(2.2, 1.5, 2.0, col, 0, 1.75, -2.6);
+  b.box(2.0, 0.6, 0.05, 0x101820, 0, 2.15, -3.61, 0.25, 0, 0);
+  b.box(2.3, 0.3, 0.3, C.chrome, 0, 0.85, -3.7);
+  for (const s of [-0.75, 0.75]) b.box(0.35, 0.2, 0.05, 0xfff2b0, s, 1.2, -3.62, 0, 0, 0, { glow: true });
+  // baú de carga
+  b.box(2.4, 2.4, 4.8, 0xe8e0d0, 0, 2.2, 0.9);
+  b.box(2.42, 0.35, 4.82, 0xc41e2a, 0, 1.6, 0.9);
+  b.box(2.42, 0.2, 4.82, col, 0, 3.3, 0.9);
+  b.box(2.2, 2.2, 0.05, 0x8a8070, 0, 2.2, 3.31);
+  for (const s of [-0.7, 0.7]) b.box(0.3, 0.15, 0.05, 0xff2020, s, 1.0, 3.33, 0, 0, 0, { glow: true });
+  for (const s of [-1, 1]) b.cyl(0.08, 0.08, 1.4, 6, C.chrome, s * 1.0, 2.9, -1.5);
+  const body = b.build();
+  const axle = (z) => {
+    const ab = new Builder();
+    for (const s of [-1, 1]) {
+      ab.cyl(0.5, 0.5, 0.4, 12, C.tire, s * 1.05, 0, 0, 0, 0, PI / 2);
+      ab.cyl(0.28, 0.28, 0.42, 8, C.chrome, s * 1.05, 0, 0, 0, 0, PI / 2);
+    }
+    const m = ab.mesh();
+    m.position.set(0, 0.5, z);
+    return m;
+  };
+  return { body, front: axle(-2.6), rear: axle(2.2) };
+}
+
+export function weaponChest() {
+  const b = new Builder();
+  b.box(0.9, 0.5, 0.55, 0x7a4a22, 0, 0.25, 0);
+  for (const y of [0.08, 0.42]) b.box(0.92, 0.06, 0.57, 0xe3b23c, 0, y, 0);
+  for (const x of [-0.42, 0.42]) b.box(0.06, 0.52, 0.57, 0xe3b23c, x, 0.26, 0);
+  b.box(0.12, 0.14, 0.04, 0xe3b23c, 0, 0.3, -0.29);
+  const lid = new Builder();
+  lid.cyl(0.275, 0.275, 0.9, 10, 0x8a5a2a, 0, 0, 0, 0, 0, PI / 2, { sy: 1, sz: 1 });
+  lid.box(0.92, 0.04, 0.57, 0xe3b23c, 0, 0.0, 0);
+  const g = b.build();
+  const lidMesh = lid.mesh();
+  lidMesh.scale.set(1, 0.6, 1);
+  lidMesh.position.set(0, 0.5, 0);
+  g.add(lidMesh);
+  g.userData.lid = lidMesh;
+  return g;
 }
 
 // ---------------------------------------------------------------- mão / luva
@@ -486,13 +549,6 @@ export function gunModel(id) {
 }
 
 // ---------------------------------------------------------------- moto do jogador (1ª pessoa)
-// coldres todos do lado direito (mão esquerda fica no guidão)
-export const SLOT_DEFS = [
-  { pos: [0.3, 0.8, -0.24], rot: [-1.15, 0, -0.25], side: 'D' },
-  { pos: [0.38, 0.86, 0.05], rot: [-1.35, 0, -0.35], side: 'D' },
-  { pos: [0.26, 0.92, -0.5], rot: [-1.0, 0, -0.3], side: 'D' },
-  { pos: [0.43, 0.64, -0.14], rot: [-1.25, 0, -0.45], side: 'D' },
-];
 
 export function playerBike() {
   const grp = new THREE.Group();
@@ -541,11 +597,6 @@ export function playerBike() {
     b.bar([s * 0.13, 0.74, 0.08], [s * 0.22, 0.74, -0.34], 0.15, C.denim);
     b.bar([s * 0.22, 0.74, -0.34], [s * 0.27, 0.42, -0.42], 0.13, C.denim);
     b.box(0.13, 0.12, 0.28, 0x2a1a10, s * 0.28, 0.4, -0.48);
-  }
-  // coldres de couro
-  for (const sd of SLOT_DEFS) {
-    b.box(0.07, 0.22, 0.12, 0x5a3a20, sd.pos[0] + Math.sign(sd.pos[0]) * 0.02, sd.pos[1] - 0.08, sd.pos[2], sd.rot[0] + 1.2, 0, sd.rot[2]);
-    b.box(0.075, 0.03, 0.125, C.chrome, sd.pos[0] + Math.sign(sd.pos[0]) * 0.02, sd.pos[1] + 0.02, sd.pos[2], sd.rot[0] + 1.2, 0, sd.rot[2]);
   }
   const body = b.build();
   grp.add(body);

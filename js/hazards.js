@@ -253,7 +253,7 @@ export class Hazards {
 
   spawnPattern() {
     const z = -270;
-    const kind = weightedPick(['barrel', 'barrels', 'wreck', 'cones', 'health', 'fury'], (k) => ({ barrel: 3, barrels: 1.5, wreck: 2.2, cones: 1.6, health: G.player.hp < G.player.stats.maxHp * 0.6 ? 1.2 : 0.35, fury: 0.25 })[k]);
+    const kind = weightedPick(['barrel', 'barrels', 'wreck', 'cones', 'health', 'fury'], (k) => ({ barrel: 3, barrels: 1.5, wreck: 2.2, cones: 1.6, health: 0, fury: 0.25 })[k]);
     const lane = pick(LANES) + rand(-0.8, 0.8);
     if (kind === 'barrel') this.spawn('barrel', lane, z);
     else if (kind === 'barrels') {

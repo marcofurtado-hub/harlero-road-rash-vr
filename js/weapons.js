@@ -4,12 +4,12 @@ import * as Models from './models.js';
 
 // dmg = por projétil (beam: por segundo); rate = tiros/s
 export const WEAPONS = {
-  sawedoff: { name: 'Escopeta Cano Duplo', tier: 1, icon: '💥', dmg: 14, pellets: 10, rate: 1.8, mag: 2, reload: 1, spread: 0.075, range: 50, sfx: 'shotgun', recoil: 0.9, haptic: 1, tracer: 0xffc060, desc: 'Dois canos serrados. Resolve tudo de perto.' },
-  magnum: { name: 'Magnum .50', tier: 2, icon: '🌟', dmg: 120, rate: 1.7, mag: 6, reload: 1, spread: 0.003, range: 220, pierce: 2, sfx: 'magnum', recoil: 1.1, haptic: 1, tracer: 0xffd040, desc: 'Banhada a ouro. Atravessa 3 punks.' },
-  tommy: { name: 'Metralhadora', tier: 3, icon: '🔫', dmg: 21, rate: 12, auto: true, mag: 50, reload: 1, spread: 0.028, range: 140, sfx: 'tommy', recoil: 0.16, haptic: 0.35, tracer: 0xffe080, desc: 'Segura o gatilho e varre a estrada.' },
-  bazooka: { name: 'Bazuca', tier: 4, icon: '🚀', dmg: 230, splash: 6, rate: 1.1, mag: 1, reload: 1, spread: 0.004, projectile: true, straight: true, pspeed: 40, range: 220, sfx: 'bazooka', recoil: 1.3, haptic: 1, tracer: 0xffa040, desc: 'Foguete em linha reta. Explode grupos inteiros.' },
-  autoshotgun: { name: 'Escopeta Automática', tier: 5, icon: '💣', dmg: 16, pellets: 8, rate: 4.5, auto: true, mag: 12, reload: 1, spread: 0.065, range: 55, sfx: 'shotgun', recoil: 0.55, haptic: 0.8, tracer: 0xffc060, desc: 'Chumbo grosso em rajada.' },
-  gatling: { name: 'Mini-Gatling', tier: 5, icon: '⚙️', dmg: 16, rate: 24, auto: true, mag: 180, reload: 1, spread: 0.045, range: 130, spinup: 0.45, sfx: 'gatling', recoil: 0.07, haptic: 0.22, tracer: 0xfff0a0, desc: '24 tiros por segundo. Gira e destrói.' },
+  sawedoff: { name: 'Escopeta Cano Duplo', tier: 1, icon: '💥', dmg: 14, pellets: 10, rate: 2.6, mag: 2, reload: 1, spread: 0.075, range: 50, sfx: 'shotgun', recoil: 0.9, haptic: 1, tracer: 0xffc060, desc: 'Dois canos serrados. Resolve tudo de perto.' },
+  magnum: { name: 'Magnum .50', tier: 2, icon: '🌟', dmg: 110, rate: 2.8, mag: 6, reload: 1, spread: 0.003, range: 220, pierce: 2, sfx: 'magnum', recoil: 1.1, haptic: 1, tracer: 0xffd040, desc: 'Banhada a ouro. Atravessa 3 punks.' },
+  tommy: { name: 'Metralhadora', tier: 3, icon: '🔫', dmg: 20, rate: 14, auto: true, mag: 50, reload: 1, spread: 0.028, range: 140, sfx: 'tommy', recoil: 0.16, haptic: 0.35, tracer: 0xffe080, desc: 'Segura o gatilho e varre a estrada.' },
+  bazooka: { name: 'Bazuca', tier: 4, icon: '🚀', dmg: 230, splash: 6, rate: 1.6, mag: 1, reload: 1, spread: 0.004, projectile: true, straight: true, pspeed: 40, range: 220, sfx: 'bazooka', recoil: 1.3, haptic: 1, tracer: 0xffa040, desc: 'Foguete em linha reta. Explode grupos inteiros.' },
+  autoshotgun: { name: 'Escopeta Automática', tier: 5, icon: '💣', dmg: 16, pellets: 8, rate: 5.5, auto: true, mag: 12, reload: 1, spread: 0.065, range: 55, sfx: 'shotgun', recoil: 0.55, haptic: 0.8, tracer: 0xffc060, desc: 'Chumbo grosso em rajada.' },
+  gatling: { name: 'Mini-Gatling', tier: 5, icon: '⚙️', dmg: 16, rate: 26, auto: true, mag: 180, reload: 1, spread: 0.04, range: 130, spinup: 0.25, sfx: 'gatling', recoil: 0.07, haptic: 0.22, tracer: 0xfff0a0, desc: '24 tiros por segundo. Gira e destrói.' },
   flyingv: { name: 'Flying V Laser', tier: 6, icon: '🎸', dmg: 240, beam: true, rate: 1, auto: true, mag: 100, reload: 1, spread: 0, range: 170, pierce: 99, sfx: 'laser', recoil: 0, haptic: 0.35, tracer: 0x40f0ff, desc: 'Um solo de guitarra que derrete tudo.' },
 };
 // armas ganhas automaticamente ao limpar cada onda
@@ -57,6 +57,33 @@ function spreadDir(dir, s, out) {
   const a = Math.random() * Math.PI * 2;
   out.addScaledVector(u, Math.cos(a) * r).addScaledVector(w, Math.sin(a) * r).normalize();
   return out;
+}
+
+// mira assistida: puxa o tiro pro punk mais próximo da linha de mira (como o "ímã" do Chicken Rancher)
+const _to = new THREE.Vector3();
+export function assistAim(o, dir, range, base, perM) {
+  let best = null;
+  let bestScore = Infinity;
+  for (const e of G.enemies.list) {
+    if (e.dying) continue;
+    for (let i = 0; i < e.spheres.length; i++) {
+      const s = e.spheres[i];
+      if (s.off || s.part === 'bike') continue;
+      _to.copy(e.sw[i]).sub(o);
+      const along = _to.dot(dir);
+      if (along <= 0.5 || along > range) continue;
+      const perp = Math.sqrt(Math.max(0, _to.lengthSq() - along * along));
+      const lim = base + along * perM;
+      if (perp > lim) continue;
+      const score = perp / lim - (s.part === 'head' ? 0.15 : 0);
+      if (score < bestScore) {
+        bestScore = score;
+        best = e.sw[i];
+      }
+    }
+  }
+  if (best) dir.copy(best).sub(o).normalize();
+  return dir;
 }
 
 export function collectHits(o, d, max, out) {
@@ -131,6 +158,7 @@ export class Gun {
     this.toP = new THREE.Vector3();
     this.toQ = new THREE.Quaternion();
     this.firing = false;
+    this.pop = 1;
   }
 
   get stats() {
@@ -232,6 +260,7 @@ export class Gun {
     const from = this.muzzleWorld(new THREE.Vector3());
     const dir = aimD ? aimD.clone() : this.dirWorld(new THREE.Vector3());
     const origin = aimO ? aimO.clone() : from.clone();
+    assistAim(origin, dir, S.range, aimD ? 0.25 : 0.5, aimD ? 0.03 : 0.065);
     const d = new THREE.Vector3();
     for (let p = 0; p < S.pellets; p++) {
       spreadDir(dir, S.spread, d);
@@ -244,11 +273,11 @@ export class Gun {
     G.fx.muzzle(from, dir, 'fire');
     this.flash.visible = true;
     this.flash.material.rotation = Math.random() * 6.28;
-    this.flash.scale.setScalar(this.def.pellets ? 0.3 : 0.18 + Math.random() * 0.06);
-    this.flashT = 0.045;
+    this.flash.scale.setScalar((this.def.pellets ? 0.42 : 0.28) + Math.random() * 0.08);
+    this.flashT = 0.05;
     G.audio.gun(this.def.sfx, from);
     this.recoil = Math.min(1.4, this.recoil + this.def.recoil);
-    if (this.holder) G.player.pulse(this.holder, this.def.haptic, this.def.auto ? 30 : 60);
+    if (this.holder) G.player.pulse(this.holder, Math.max(0.45, this.def.haptic), this.def.auto ? 35 : 90);
   }
 
   ray(o, d, S, from) {
@@ -271,7 +300,7 @@ export class Gun {
     }
     const end = new THREE.Vector3().copy(o).addScaledVector(d, endT);
     if (endT === tg && tg < S.range) G.fx.dust(end, 3);
-    G.fx.tracer(from, end, this.def.tracer, 0.05, this.def.pellets ? 0.7 : 1);
+    G.fx.tracer(from, end, this.def.tracer, 0.07, this.def.pellets ? 1.1 : 1.8);
   }
 
   hitFeedback(res, pt) {
@@ -298,6 +327,7 @@ export class Gun {
     const from = this.muzzleWorld(new THREE.Vector3());
     const dir = aimD ? aimD.clone() : this.dirWorld(new THREE.Vector3());
     const o = aimO ? aimO.clone() : from.clone();
+    assistAim(o, dir, S.range, aimD ? 0.2 : 0.4, aimD ? 0.02 : 0.05);
     const hits = collectHits(o, dir, S.range, _hits);
     const tg = groundT(o, dir);
     let endT = Math.min(S.range, tg);
@@ -323,11 +353,9 @@ export class Gun {
     this.beam.visible = true;
     this.beam.scale.set(1 + Math.sin(G.time * 60) * 0.25, 1 + Math.sin(G.time * 60) * 0.25, len);
     // alinha o feixe do cano até o ponto final (no desktop a mira vem da câmera)
-    if (aimD) {
-      this.muzzle.updateWorldMatrix(true, false);
-      const local = this.muzzle.worldToLocal(end.clone()).normalize();
-      this.beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), local);
-    } else this.beam.quaternion.identity();
+    this.muzzle.updateWorldMatrix(true, false);
+    const local = this.muzzle.worldToLocal(end.clone()).normalize();
+    this.beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), local);
     if (this.holder) G.player.pulse(this.holder, 0.35, 30);
   }
   stopBeam() {
@@ -362,9 +390,13 @@ export class Gun {
       }
     }
     if (this.holder !== null && this.holder.desktop) spinX *= 0.5;
-    this.recoil = damp(this.recoil, 0, 12, dt);
-    this.kick.position.set(0, this.recoil * 0.01, this.recoil * 0.05);
-    this.kick.rotation.set(this.recoil * 0.45 + spinX, 0, 0);
+    this.recoil = damp(this.recoil, 0, 14, dt);
+    if (this.pop < 1) {
+      this.pop = Math.min(1, this.pop + dt / 0.15);
+      this.root.scale.setScalar(0.4 + 0.6 * (1 - Math.pow(1 - this.pop, 3)));
+    }
+    this.kick.position.set(0, this.recoil * 0.015, this.recoil * 0.08);
+    this.kick.rotation.set(this.recoil * 0.6 + spinX, 0, 0);
     if (this.flashT > 0) {
       this.flashT -= dt;
       if (this.flashT <= 0) this.flash.visible = false;

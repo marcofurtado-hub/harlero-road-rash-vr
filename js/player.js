@@ -6,10 +6,13 @@ import { ROAD_HALF } from './world.js';
 
 const HEAD = new THREE.Vector3(0, 1.36, 0.02);
 const UP = new THREE.Vector3(0, 1, 0);
-const GRAB_R = 0.2;
-const BAR_R = 0.17; // raio pra agarrar a manopla do guidão
-const BAR_MAX = 0.45; // ângulo do guidão (rad) que dá esterço total
-const GRIP_POS = { L: new THREE.Vector3(-0.44, 0.06, 0.27), R: new THREE.Vector3(0.44, 0.06, 0.27) };
+const GRIP_L = new THREE.Vector3(-0.44, 0.06, 0.27); // manopla esquerda (no grupo do guidão)
+// sensibilidade da direção (valores que dão esterço total)
+const TWIST_FULL = 0.3; // giro do controle esquerdo (rad, ~17°)
+const SLIDE_FULL = 0.14; // mão esquerda pro lado / frente-trás (m)
+const LEAN_FULL = 0.14; // cabeça inclinada pro lado (m)
+const ROLL_FULL = 0.3; // cabeça tombada (rad, ~17°)
+const dz = (v, z) => (Math.abs(v) < z ? 0 : v - Math.sign(v) * z);
 const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const _v = new THREE.Vector3();
 const _a = new THREE.Vector3();
@@ -95,32 +98,21 @@ export class Player {
     this.headW = new THREE.Vector3().copy(HEAD);
     this.vig = vignette();
     camera.add(this.vig);
-    // coldres
-    this.slots = Models.SLOT_DEFS.map((d, i) => {
-      const a = new THREE.Object3D();
-      a.position.fromArray(d.pos);
-      a.rotation.fromArray(d.rot);
-      this.bike.group.add(a);
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(0.075, 0.008, 6, 20),
-        new THREE.MeshBasicMaterial({ color: 0xffd21e, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false })
-      );
-      ring.position.set(0, 0.06, 0.0);
-      ring.rotation.x = Math.PI / 2;
-      a.add(ring);
-      return { anchor: a, gun: null, ring, i, def: d };
-    });
+    // guarda as armas que não estão na mão (invisíveis)
+    this.stash = new THREE.Group();
+    this.stash.visible = false;
+    this.rig.add(this.stash);
+    // luva fixa na manopla esquerda quando a mão esquerda segura o guidão
+    this.barGlove = Models.freeGlove();
+    this.barGlove.position.copy(GRIP_L).add(new THREE.Vector3(0, 0.035, 0));
+    this.barGlove.rotation.set(0, 0, -Math.PI / 2);
+    this.barGlove.scale.x = -1;
+    this.barGlove.visible = false;
+    this.bike.bars.add(this.barGlove);
     this.barAngle = 0;
-    this.barGloves = {};
-    for (const k of ['L', 'R']) {
-      const gl = Models.freeGlove();
-      gl.position.copy(GRIP_POS[k]).add(new THREE.Vector3(0, 0.035, 0));
-      gl.rotation.set(0, 0, k === 'L' ? -Math.PI / 2 : Math.PI / 2);
-      if (k === 'L') gl.scale.x = -1;
-      gl.visible = false;
-      this.bike.bars.add(gl);
-      this.barGloves[k] = gl;
-    }
+    this.headNeutral = 0;
+    this.guns = [];
+    this.cur = -1;
     this.hands = [0, 1].map((i) => this.makeHand(i));
     this.desk = { yaw: 0, pitch: 0, ndc: new THREE.Vector2(), keys: {}, hand: { desktop: true, held: null, trig: false, trigPressed: false } };
     this.deskAim = { o: new THREE.Vector3(), d: new THREE.Vector3(0, 0, -1) };
@@ -137,16 +129,18 @@ export class Player {
     const glove = Models.freeGlove();
     glove.visible = false;
     grip.add(glove);
-    const hand = { i, controller, grip, glove, src: null, gp: null, side: '', held: null, trig: false, trigPressed: false, near: -1, aPrev: false, xPrev: false, bar: null, pos0: 0, base: 0, q0: new THREE.Quaternion(), hapT: 0 };
+    const hand = { i, controller, grip, glove, src: null, gp: null, side: '', held: null, trig: false, trigPressed: false, btnPrev: [], bar: false, p0: new THREE.Vector3(), q0: new THREE.Quaternion(), hapT: 0 };
     controller.addEventListener('connected', (e) => {
       hand.src = e.data;
       hand.gp = e.data.gamepad || null;
       hand.side = e.data.handedness;
-      glove.visible = !hand.held;
       glove.scale.x = hand.side === 'left' ? -1 : 1;
+      glove.visible = true;
+      if (hand.side === 'right' && G.xr) this.equipCurrent();
     });
     controller.addEventListener('disconnected', () => {
       this.releaseBar(hand);
+      if (hand.held) this.unequip(hand);
       hand.src = null;
       hand.gp = null;
       glove.visible = false;
@@ -159,9 +153,17 @@ export class Player {
     controller.addEventListener('selectend', () => {
       hand.trig = false;
     });
-    controller.addEventListener('squeezestart', () => this.onGrip(hand));
+    controller.addEventListener('squeezestart', () => {
+      G.audio.init();
+      if (hand.side === 'left') this.grabBar(hand);
+    });
     controller.addEventListener('squeezeend', () => this.releaseBar(hand));
     return hand;
+  }
+
+  get gunHand() {
+    if (!G.xr) return this.desk.hand;
+    return this.hands.find((h) => h.side === 'right' && h.src) || null;
   }
 
   reset() {
@@ -179,236 +181,172 @@ export class Player {
     this.hurtFlash = 0;
     this.invulnT = 0;
     this.crashT = 0;
-    // armas iniciais
-    for (const h of this.allHands()) if (h.held) h.held = null;
-    for (const s of this.slots) {
-      if (s.gun) s.gun.dispose();
-      s.gun = null;
-    }
-    this.setSlotGun(0, new Gun('sawedoff'));
-    for (const h of this.hands) h.glove.visible = !!h.src;
-    if (!G.xr) this.deskEquip(0);
-    this.updateRings();
+    for (const h of this.allHands()) h.held = null;
+    for (const g of this.guns) g.dispose();
+    this.guns = [];
+    this.cur = -1;
+    this.giveWeapon('sawedoff', true);
   }
 
   allHands() {
     return [...this.hands, this.desk.hand];
   }
   allGuns() {
-    return this.slots.filter((s) => s.gun).map((s) => s.gun);
+    return this.guns;
   }
   ownedIds() {
-    return this.allGuns().map((g) => g.id);
+    return this.guns.map((g) => g.id);
   }
 
-  setSlotGun(i, gun) {
-    const s = this.slots[i];
-    s.gun = gun;
-    gun.slot = i;
-    gun.holder = null;
-    s.anchor.add(gun.root);
-    gun.root.position.set(0, 0, 0);
-    gun.root.quaternion.identity();
-    gun.lerpT = 1;
-  }
-
-  slotFor(id) {
-    const free = this.slots.find((s) => !s.gun);
-    if (free) return { slot: free.i, replaces: null };
-    let worst = null;
-    for (const s of this.slots) if (!worst || s.gun.score < worst.gun.score) worst = s;
-    return { slot: worst.i, replaces: worst.gun };
-  }
-
-  giveWeapon(id) {
-    const { slot, replaces } = this.slotFor(id);
-    const gun = new Gun(id);
-    let holder = null;
-    if (replaces) {
-      holder = replaces.holder;
-      if (holder) holder.held = null;
-      replaces.dispose();
+  // ------------------------------------------------------------ armas (sempre na mão direita)
+  giveWeapon(id, silent = false) {
+    let gun = this.guns.find((g) => g.id === id);
+    if (gun) {
+      gun.level++;
+    } else {
+      gun = new Gun(id);
+      this.guns.push(gun);
+      this.stash.add(gun.root);
     }
-    this.setSlotGun(slot, gun);
-    if (holder) this.equip(holder, gun);
-    else if (!G.xr) this.deskEquip(slot);
-    this.updateRings();
+    this.select(this.guns.indexOf(gun), silent);
+    return gun;
   }
 
-  // ------------------------------------------------------------ empunhar
-  onGrip(hand) {
-    G.audio.init();
-    hand.grip.getWorldPosition(_v);
-    // mão vazia perto da manopla: segura o guidão
-    if (!hand.held) {
-      const side = this.nearBar(_v);
-      if (side) {
-        let holsterD = Infinity;
-        for (const sl of this.slots) if (sl.gun && !sl.gun.holder) holsterD = Math.min(holsterD, sl.anchor.getWorldPosition(_a).distanceTo(_v));
-        const barD = this.bike.bars.localToWorld(_a.copy(GRIP_POS[side])).distanceTo(_v);
-        if (barD <= holsterD) {
-          this.grabBar(hand, side);
-          return;
-        }
-      }
-    }
-    let best = -1;
-    let bd = GRAB_R;
-    for (const s of this.slots) {
-      const can = (s.gun && !s.gun.holder) || (hand.held && hand.held.slot === s.i);
-      if (!can) continue;
-      s.anchor.getWorldPosition(_a);
-      const d = _a.distanceTo(_v);
-      if (d < bd) {
-        bd = d;
-        best = s.i;
-      }
-    }
-    if (best < 0) return;
-    const s = this.slots[best];
-    if (hand.held && hand.held.slot === best) this.holster(hand);
-    else {
-      if (hand.held) this.holster(hand);
-      this.equip(hand, s.gun);
+  levelUpAll() {
+    for (const g of this.guns) g.level = Math.min(g.level + 1, 9);
+  }
+
+  select(i, silent = false) {
+    if (!this.guns.length) return;
+    i = ((i % this.guns.length) + this.guns.length) % this.guns.length;
+    const hand = this.gunHand;
+    if (hand && hand.held) this.unequip(hand);
+    this.cur = i;
+    if (hand) this.equip(hand, this.guns[i], silent);
+  }
+  cycle(dir) {
+    if (this.guns.length < 2) return;
+    this.select(this.cur + dir);
+    const g = this.guns[this.cur];
+    const hand = this.gunHand;
+    if (G.xr && hand) {
+      hand.controller.getWorldPosition(_v);
+      _v.y += 0.22;
+      G.fx.text(`${g.def.icon} ${g.def.name}`, _v, '#8dff4a', 0.12, 0.9);
     }
   }
-
-  // ------------------------------------------------------------ guidão
-  nearBar(p) {
-    let best = null;
-    let bd = BAR_R;
-    for (const k of ['L', 'R']) {
-      if (this.hands.some((h) => h.bar === k)) continue;
-      const d = this.bike.bars.localToWorld(_a.copy(GRIP_POS[k])).distanceTo(p);
-      if (d < bd) {
-        bd = d;
-        best = k;
-      }
-    }
-    return best;
+  equipCurrent() {
+    if (this.cur >= 0) this.select(this.cur, true);
   }
 
-  // ângulo do guidão implicado pela posição da mão (girando em torno da coluna de direção)
-  handBarAngle(hand) {
-    hand.grip.getWorldPosition(_v);
-    this.bike.group.worldToLocal(_v);
-    const rx = _v.x - this.bike.bars.position.x;
-    const rz = _v.z - this.bike.bars.position.z;
-    const g = GRIP_POS[hand.bar];
-    return wrapA(Math.atan2(-rz, rx) - Math.atan2(-g.z, g.x));
-  }
-  // giro do controle em torno do eixo vertical desde que agarrou
-  handTwist(hand) {
-    hand.controller.getWorldQuaternion(_qa);
-    _qb.copy(hand.q0).invert();
-    _qa.multiply(_qb);
-    return wrapA(2 * Math.atan2(_qa.y, _qa.w));
-  }
-
-  grabBar(hand, side) {
-    hand.bar = side;
-    hand.pos0 = this.handBarAngle(hand);
-    hand.base = this.barAngle;
-    hand.controller.getWorldQuaternion(hand.q0);
-    hand.glove.visible = false;
-    this.barGloves[side].visible = true;
-    this.pulse(hand, 0.5, 40);
-    G.audio.play('grab');
-  }
-
-  releaseBar(hand) {
-    if (!hand.bar) return;
-    this.barGloves[hand.bar].visible = false;
-    hand.bar = null;
-    hand.glove.visible = !!hand.src && !hand.held;
-  }
-
-  barSteer(realDt) {
-    let sum = 0;
-    let n = 0;
-    for (const h of this.hands) {
-      if (!h.bar) continue;
-      // gira o guidão movendo a mão em arco e/ou torcendo o controle no eixo vertical
-      sum += h.base + wrapA(this.handBarAngle(h) - h.pos0) * 0.6 + this.handTwist(h) * 0.9;
-      n++;
-      h.hapT -= realDt;
-      if (h.hapT <= 0) {
-        h.hapT = 0.12;
-        this.pulse(h, 0.04 + (this.speed / 45) * 0.08, 70);
-      }
-    }
-    if (!n) return null;
-    this.barAngle = damp(this.barAngle, clamp(sum / n, -BAR_MAX * 1.3, BAR_MAX * 1.3), 20, realDt);
-    return clamp(-this.barAngle / BAR_MAX, -1, 1);
-  }
-
-  equip(hand, gun) {
-    this.releaseBar(hand);
+  equip(hand, gun, silent = false) {
     gun.holder = hand;
     hand.held = gun;
     gun.glove.visible = true;
     if (hand.desktop) {
-      gun.glove.visible = true;
-      gun.attachTo(this.camera, DESK_POS, deskQuat(), 0.15);
+      gun.attachTo(this.camera, DESK_POS, deskQuat(), 0.12);
     } else {
       gun.glove.scale.x = hand.side === 'left' ? -1 : 1;
-      gun.holdIn(hand.controller);
+      hand.controller.add(gun.root);
+      gun.root.position.set(0, -0.025, 0.07);
+      gun.root.quaternion.identity();
+      gun.lerpT = 1;
       hand.glove.visible = false;
-      this.pulse(hand, 0.4, 40);
+      this.pulse(hand, 0.5, 50);
     }
-    G.audio.play('grab');
-    this.updateRings();
+    gun.pop = 0;
+    if (!silent) G.audio.play('grab');
   }
 
-  holster(hand) {
+  unequip(hand) {
     const gun = hand.held;
     if (!gun) return;
     gun.stopBeam();
     hand.held = null;
     gun.holder = null;
     gun.glove.visible = false;
-    gun.attachTo(this.slots[gun.slot].anchor);
-    if (!hand.desktop) {
-      hand.glove.visible = !!hand.src;
-      this.pulse(hand, 0.25, 30);
-    }
-    G.audio.play('holster');
-    this.updateRings();
+    this.stash.add(gun.root);
+    gun.lerpT = 1;
+    if (!hand.desktop) hand.glove.visible = !!hand.src && !hand.bar;
   }
 
   deskEquip(i) {
-    const s = this.slots[i];
-    if (!s || !s.gun) return;
-    const hand = this.desk.hand;
-    if (hand.held === s.gun) return;
-    if (hand.held) this.holster(hand);
-    if (s.gun.holder) return;
-    this.equip(hand, s.gun);
+    if (i < this.guns.length) this.select(i);
   }
-
   deskCycle(dir) {
-    const guns = this.slots.filter((s) => s.gun);
-    if (!guns.length) return;
-    const cur = this.desk.hand.held ? guns.findIndex((s) => s.gun === this.desk.hand.held) : -1;
-    const next = guns[(cur + dir + guns.length) % guns.length];
-    this.deskEquip(next.i);
+    this.cycle(dir);
   }
 
   enterXR() {
     const h = this.desk.hand;
-    if (h.held) this.holster(h);
+    if (h.held) this.unequip(h);
     this.calibrateT = 0.5;
+    this.equipCurrent();
   }
   exitXR() {
     for (const h of this.hands) {
       this.releaseBar(h);
-      if (h.held) this.holster(h);
+      if (h.held) this.unequip(h);
     }
     this.xrOrigin.position.set(0, 0, 0);
     this.xrOrigin.rotation.set(0, 0, 0);
     this.camera.position.copy(HEAD);
     this.camera.quaternion.identity();
-    this.deskEquip(0);
+    this.equipCurrent();
+  }
+
+  // ------------------------------------------------------------ guidão (mão esquerda: GRIP em qualquer lugar)
+  handLocal(hand, out) {
+    hand.grip.getWorldPosition(out);
+    return this.rig.worldToLocal(out);
+  }
+  handTwist(hand) {
+    hand.controller.getWorldQuaternion(_qa);
+    _qb.copy(hand.q0).invert();
+    _qa.multiply(_qb);
+    return wrapA(2 * Math.atan2(_qa.y, _qa.w));
+  }
+  grabBar(hand) {
+    if (hand.held || hand.bar) return;
+    hand.bar = true;
+    this.handLocal(hand, hand.p0);
+    hand.controller.getWorldQuaternion(hand.q0);
+    hand.glove.visible = false;
+    this.barGlove.visible = true;
+    this.pulse(hand, 0.5, 40);
+    G.audio.play('grab');
+  }
+  releaseBar(hand) {
+    if (!hand.bar) return;
+    hand.bar = false;
+    this.barGlove.visible = false;
+    hand.glove.visible = !!hand.src && !hand.held;
+  }
+  barSteer(realDt) {
+    const h = this.hands.find((x) => x.bar);
+    if (!h) return null;
+    const p = this.handLocal(h, _v);
+    // girar o controle, mover a mão pro lado ou empurrar/puxar a manopla: tudo vira
+    const s = -this.handTwist(h) / TWIST_FULL + (p.x - h.p0.x) / SLIDE_FULL - (p.z - h.p0.z) / SLIDE_FULL;
+    h.hapT -= realDt;
+    if (h.hapT <= 0) {
+      h.hapT = 0.12;
+      this.pulse(h, 0.04 + (this.speed / 45) * 0.07, 70);
+    }
+    return clamp(s, -1, 1);
+  }
+  // inclinar a cabeça / o corpo pro lado também pilota
+  headSteer(realDt) {
+    // mede no pescoço (atrás dos olhos) pra que só virar a cabeça pra olhar não esterce
+    const neck = this.camera.localToWorld(_a.set(0, -0.06, 0.1));
+    const lx = neck.x - this.x - HEAD.x;
+    this.headNeutral = damp(this.headNeutral, lx, 0.05, realDt);
+    const e = _e.setFromQuaternion(this.camera.getWorldQuaternion(_qa), 'YXZ');
+    // olhando pro lado, o deslocamento lateral conta bem menos (evita esterçar ao olhar um punk)
+    const facing = Math.max(0, Math.cos(e.y)) ** 2;
+    const lean = (dz(lx - this.headNeutral, 0.035) / LEAN_FULL) * facing;
+    const roll = dz(-e.z, 0.07) / ROLL_FULL;
+    return clamp(lean + roll, -1, 1);
   }
 
   calibrate() {
@@ -418,6 +356,7 @@ export class Player {
     this.xrOrigin.rotation.set(0, -yaw, 0);
     const p = cam.position.clone().applyAxisAngle(UP, -yaw);
     this.xrOrigin.position.set(HEAD.x - p.x, HEAD.y - p.y, HEAD.z - p.z);
+    this.headNeutral = 0;
   }
 
   pulse(hand, v, ms) {
@@ -428,8 +367,7 @@ export class Player {
       if (h && h.pulse) {
         const pr = h.pulse(clamp(v, 0, 1), ms);
         if (pr && pr.catch) pr.catch(() => {});
-      }
-      else if (gp && gp.vibrationActuator) gp.vibrationActuator.playEffect('dual-rumble', { duration: ms, strongMagnitude: v, weakMagnitude: v });
+      } else if (gp && gp.vibrationActuator) gp.vibrationActuator.playEffect('dual-rumble', { duration: ms, strongMagnitude: v, weakMagnitude: v });
     } catch (e) {
       /* sem vibração */
     }
@@ -438,19 +376,13 @@ export class Player {
     for (const h of this.hands) this.pulse(h, v, ms);
   }
 
-  updateRings() {
-    for (const s of this.slots) s.ring.visible = !!s.gun;
-  }
-
   // ------------------------------------------------------------ dano
   hitSegment(a, b, r) {
-    // cápsula do corpo: da cabeça até o peito
     const top = this.headW;
     const bot = _a.set(top.x, top.y - 0.55, top.z + 0.05);
     const rr = 0.27 + r;
     return segSegDist2(a, b, top, bot) < rr * rr;
   }
-
   hurt(dmg, from) {
     if (G.state === 'title' || G.state === 'dead') return;
     if (this.invulnT > 0 || dmg <= 0) return;
@@ -479,13 +411,9 @@ export class Player {
   aimRays() {
     const rays = [];
     if (G.xr) {
-      for (const h of this.hands) {
-        if (!h.held) continue;
-        rays.push({ o: h.held.muzzleWorld(new THREE.Vector3()), d: h.held.dirWorld(new THREE.Vector3()) });
-      }
-    } else {
-      rays.push({ o: this.deskAim.o.clone(), d: this.deskAim.d.clone() });
-    }
+      const h = this.gunHand;
+      if (h && h.held) rays.push({ o: h.held.muzzleWorld(new THREE.Vector3()), d: h.held.dirWorld(new THREE.Vector3()) });
+    } else rays.push({ o: this.deskAim.o.clone(), d: this.deskAim.d.clone() });
     return rays;
   }
 
@@ -493,8 +421,9 @@ export class Player {
   update(dt, realDt) {
     let steer = 0;
     let thr = 0;
-    const bar = G.xr ? this.barSteer(realDt) : null;
+    let bar = null;
     if (G.xr) {
+      bar = this.barSteer(realDt);
       for (const h of this.hands) {
         const gp = h.gp;
         if (!gp) continue;
@@ -503,20 +432,30 @@ export class Player {
         const sy = ax.length >= 4 ? ax[3] : ax[1] || 0;
         if (Math.abs(sx) > 0.15) steer += sx;
         if (Math.abs(sy) > 0.25) thr = clamp(thr - sy, -1, 1);
-        const a = gp.buttons[4] && gp.buttons[4].pressed;
-        if (a && !h.aPrev) G.audio.play('horn');
-        h.aPrev = a;
-        const b = gp.buttons[5] && gp.buttons[5].pressed;
-        if (b) {
-          this.recenterT += realDt / 2;
-          if (this.recenterT > 0.5 && this.recenterT - realDt / 2 <= 0.5) {
-            this.calibrate();
-            G.audio.play('grab');
-            G.hud.announce('RECENTRALIZADO', '', '#40e8ff', 1.2);
-          }
+        const b = gp.buttons;
+        const press = (k) => !!(b[k] && b[k].pressed);
+        const edge = (k) => press(k) && !h.btnPrev[k];
+        // gatilho lido direto do gamepad todo frame (mais responsivo)
+        const t = press(0);
+        if (t && !h.btnPrev[0]) h.trigPressed = true;
+        h.trig = t;
+        if (h.side === 'right') {
+          if (edge(4)) this.cycle(1); // A: próxima arma
+          if (edge(5)) this.cycle(-1); // B: arma anterior
+        } else {
+          if (edge(4)) G.audio.play('horn'); // X: buzina
+          if (press(5)) {
+            // Y segurado: recentraliza
+            this.recenterT += realDt;
+            if (this.recenterT > 0.5 && this.recenterT - realDt <= 0.5) {
+              this.calibrate();
+              G.audio.play('grab');
+              G.hud.announce('RECENTRALIZADO', '', '#40e8ff', 1.2);
+            }
+          } else this.recenterT = 0;
         }
+        for (const k of [0, 4, 5]) h.btnPrev[k] = press(k);
       }
-      if (!this.hands.some((h) => h.gp && h.gp.buttons[5] && h.gp.buttons[5].pressed)) this.recenterT = 0;
       if (this.calibrateT > 0) {
         this.calibrateT -= realDt;
         if (this.calibrateT <= 0) {
@@ -524,6 +463,8 @@ export class Player {
           else this.calibrateT = 0.2;
         }
       }
+      if (bar !== null) steer += bar;
+      if (G.state !== 'title') steer += this.headSteer(realDt);
     } else {
       const k = this.desk.keys;
       if (k.KeyA || k.ArrowLeft) steer -= 1;
@@ -531,14 +472,13 @@ export class Player {
       if (k.KeyW || k.ArrowUp) thr += 1;
       if (k.KeyS || k.ArrowDown) thr -= 1;
     }
-    if (bar !== null) steer = Math.abs(bar) < 0.04 ? 0 : bar;
     steer = clamp(steer, -1, 1);
     if (G.state === 'dead') {
       steer = 0;
       thr = -1;
     }
     this.thr = thr;
-    this.vx = damp(this.vx, steer * 9.5, 6, dt) + this.pushV;
+    this.vx = damp(this.vx, steer * 11, 10, dt) + this.pushV;
     this.pushV = 0;
     this.x += this.vx * dt;
     if (Math.abs(this.x) > ROAD_HALF) {
@@ -554,7 +494,7 @@ export class Player {
     if (offroad && Math.random() < 0.3) this.pulseAll(0.15, 20);
 
     this.rig.position.x = this.x;
-    if (bar === null) this.barAngle = damp(this.barAngle, -this.vx * 0.022, 8, dt);
+    this.barAngle = damp(this.barAngle, -steer * 0.35, 14, dt);
     this.bike.bars.rotation.y = this.barAngle;
     this.bike.wheel.rotation.x -= (this.speed * dt) / 0.34;
     this.bike.group.position.y = Math.sin(G.time * 55) * 0.0012 * (this.speed / 30) + (offroad ? Math.sin(G.time * 31) * 0.006 : 0);
@@ -586,13 +526,11 @@ export class Player {
       }
     }
 
-    // armas
+    // arma
+    const gh = this.gunHand;
     if (G.xr) {
       for (const h of this.hands) {
-        if (h.held) {
-          h.held.handleTrigger(dt, h.trig, h.trigPressed);
-          h.near = -1;
-        } else this.proximity(h);
+        if (h.held && h === gh) h.held.handleTrigger(dt, h.trig, h.trigPressed);
         h.trigPressed = false;
       }
     } else {
@@ -600,16 +538,9 @@ export class Player {
       if (h.held) h.held.handleTrigger(dt, h.trig, h.trigPressed, this.deskAim.o.clone(), this.deskAim.d.clone());
       h.trigPressed = false;
     }
-    for (const s of this.slots) {
-      if (!s.gun) continue;
-      s.gun.update(dt);
-      const near = this.hands.some((h) => h.near === s.i);
-      s.ring.material.opacity = near ? 0.95 : s.gun.holder ? 0.08 : 0.3;
-      s.ring.scale.setScalar(near ? 1.3 : 1);
-    }
+    for (const g of this.guns) if (g.holder) g.update(dt);
 
-    // vida / efeitos
-    if (this.stats.regen > 0 && G.state !== 'dead' && G.state !== 'title') this.heal(this.stats.regen * dt);
+    // efeitos de vida
     if (this.invulnT > 0) this.invulnT -= dt;
     this.hurtFlash = damp(this.hurtFlash, 0, 3, realDt);
     const low = this.hp / this.stats.maxHp < 0.3 && G.state !== 'title' && G.state !== 'dead' ? 0.35 + Math.sin(G.time * 6) * 0.15 : 0;
@@ -620,25 +551,9 @@ export class Player {
     else this.vig.material.uniforms.uC.value.setRGB(1, 0.35, 0);
     this.vig.visible = this.vig.material.uniforms.uI.value > 0.01;
   }
-
-  proximity(h) {
-    if (!h.src) return;
-    h.grip.getWorldPosition(_v);
-    let best = -1;
-    let bd = GRAB_R;
-    for (const s of this.slots) {
-      if (!s.gun || s.gun.holder) continue;
-      const d = s.anchor.getWorldPosition(_a).distanceTo(_v);
-      if (d < bd) {
-        bd = d;
-        best = s.i;
-      }
-    }
-    if (best !== h.near && best >= 0) this.pulse(h, 0.15, 15);
-    h.near = best;
-  }
 }
 
+const _e = new THREE.Euler();
 const DESK_POS = new THREE.Vector3(0.2, -0.2, -0.55);
 function deskQuat() {
   const to = new THREE.Vector3(0, 0, -25).sub(DESK_POS).normalize();

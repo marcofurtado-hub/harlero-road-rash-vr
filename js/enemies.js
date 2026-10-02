@@ -355,8 +355,16 @@ export class Enemy extends Base {
     aimAt(sh.head, _t, 2.2, 0.5);
     if (this.rider !== sh) aimAt(this.rider.head, _t, 1.4, 0.4);
     if (sh.arm && this.T.ai === 'shooter') {
-      _t.y -= 0.3;
-      aimAt(sh.arm, _t, Math.PI, 1.3);
+      // só mira no jogador logo antes de atirar (aviso pra desviar); no resto do tempo sacode a arma pro alto
+      const aiming = this.burstLeft > 0 || this.fireT < 0.55;
+      this.aimK = damp(this.aimK || 0, aiming ? 1 : 0, 10, 1 / 60);
+      if (this.aimK > 0.5) {
+        _t.y -= 0.3;
+        aimAt(sh.arm, _t, Math.PI, 1.3);
+      } else {
+        const w = Math.sin(this.age * 7 + this.root.id) * 0.25;
+        sh.arm.rotation.set(1.05 + w, -0.85 + w * 0.5, 0.3, 'YXZ');
+      }
     }
   }
 

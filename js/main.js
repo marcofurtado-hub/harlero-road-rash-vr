@@ -10,8 +10,11 @@ import { Hazards } from './hazards.js';
 import { Projectiles } from './projectiles.js';
 import { Enemies } from './enemies.js';
 import { Waves } from './waves.js';
-import { Cards, makeOptions, drawUpgrade, drawTarget, drawInfo, drawTitle } from './upgrades.js';
-import { PROGRESSION, WEAPONS } from './weapons.js';
+import { Cards, drawTarget, drawInfo, drawTitle } from './upgrades.js';
+import { TruckEvent } from './truck.js';
+
+// arma que o caminhão derruba ao fim de cada onda (depois disso: turbo em todas)
+const REWARDS = ['magnum', 'tommy', 'bazooka', 'autoshotgun', 'gatling', 'flyingv'];
 
 const $ = (id) => document.getElementById(id);
 const _v = new THREE.Vector3();
@@ -47,6 +50,7 @@ class Game {
     G.enemies.clear();
     G.hazards.clear();
     G.proj.clear();
+    G.truck.clear();
     G.waves.active = false;
   }
 
@@ -64,7 +68,7 @@ class Game {
   showTitleCards() {
     const vr = G.xr;
     const how = vr
-      ? ['#PILOTAR', 'Segure a manopla do guidão com GRIP e gire o controle (ou analógico)', '#ARMA', 'Mão direita no coldre da coxa + GRIP', '#ATIRAR', 'GATILHO • munição infinita', '#EXTRAS', '↑↓ acelera/freia • A/X buzina • B/Y recentraliza']
+      ? ['#PILOTAR', 'Mão esquerda: segure GRIP e gire/mova o controle. Ou incline a cabeça!', '#ATIRAR', 'Mão direita: GATILHO • munição infinita', '#TROCAR ARMA', 'A / B', '#EXTRAS', '↑↓ acelera/freia • X buzina • segure Y recentraliza']
       : ['#MIRAR / ATIRAR', 'Mouse + clique', '#PILOTAR', 'A / D  •  W acelera  S freia', '#ARMAS', '1 2 3 4 ou rodinha', '#BUZINA', 'Espaço'];
     G.cards.show([
       { ghost: true, w: 4.2, h: 1.65, cw: 1024, ch: 400, y: 3.05, z: -4.8, draw: drawTitle, face: false },
@@ -84,6 +88,7 @@ class Game {
     G.combo = 0;
     G.furyT = 0;
     this.resetWorld();
+    G.cards.hide();
     const hp = G.player.stats.maxHp;
     G.player.hp = hp;
     this.nextWave();
@@ -102,33 +107,14 @@ class Game {
     G.state = 'cleared';
     const bonus = 250 * G.wave;
     G.score += bonus;
-    const gift = PROGRESSION[G.wave];
-    if (gift && !G.player.ownedIds().includes(gift)) {
-      G.player.giveWeapon(gift);
-      G.hud.announce('NOVA ARMA!', `${WEAPONS[gift].name.toUpperCase()} NO COLDRE`, '#60ff80', 3);
-      G.player.pulseAll(0.6, 200);
-    } else G.hud.announce('ONDA LIMPA!', `BÔNUS +${bonus}`, '#60ff80', 2.4);
+    G.hud.announce('ONDA LIMPA!', `BÔNUS +${bonus}`, '#60ff80', 2);
     G.audio.play('clear');
     G.audio.music && G.audio.music.setMode('calm');
-    this.later(2.4, () => this.showUpgrades());
-  }
-
-  showUpgrades() {
-    G.state = 'upgrade';
-    const opts = makeOptions();
-    const xs = [-1.55, 0, 1.55];
-    G.cards.show(
-      opts.map((o, i) => ({
-        x: xs[i], y: 1.35, z: -3.6,
-        draw: (g, w, h) => drawUpgrade(g, w, h, o),
-        onPick: () => {
-          o.apply();
-          G.hud.announce(o.title.toUpperCase(), 'PREPARE-SE...', '#40e8ff', 2);
-          this.later(2.2, () => this.nextWave());
-        },
-      }))
-    );
-    G.hud.announce('ESCOLHA UM UPGRADE', 'atire na carta', '#ffd21e', 2.5);
+    const reward = REWARDS[G.wave - 1] || 'turbo';
+    this.later(1.6, () => {
+      if (G.state !== 'cleared') return;
+      G.truck.start(reward, () => this.later(2.4, () => G.state === 'cleared' && this.nextWave()));
+    });
   }
 
   gameOver() {
@@ -195,7 +181,9 @@ G.onKill = (e, info) => {
   let pts = e.T.score * mult * (info.headshot ? 1.5 : 1);
   G.score += pts;
   const P = G.player;
-  if (P.stats.lifesteal) P.heal(P.stats.lifesteal);
+  // cada punk derrubado devolve um pouco de vida
+  if (!info.boss) P.heal(info.headshot ? 8 : 5);
+  else P.heal(40);
   e.center(_v);
   _v.y += 1.2;
   let label = `+${Math.round(pts)}`;
@@ -219,10 +207,7 @@ G.onKill = (e, info) => {
   G.audio.play('kill', _v);
   P.pulseAll(0.4, 60);
   // drops
-  if (!info.boss) {
-    if (chance(0.11)) G.hazards.drop('health', e.x, e.z);
-    else if (chance(0.035)) G.hazards.drop('fury', e.x, e.z);
-  } else G.hazards.drop('health', e.x, e.z - 5);
+  if (!info.boss && chance(0.035)) G.hazards.drop('fury', e.x, e.z);
 };
 
 G.explode = (p, r, dmg, o = {}) => {
@@ -276,6 +261,7 @@ async function boot() {
   G.enemies = new Enemies();
   G.waves = new Waves();
   G.cards = new Cards(G.player.rig);
+  G.truck = new TruckEvent(scene);
   G.game = new Game();
   G.furyT = 0;
   G.aggro = 1;
@@ -318,6 +304,7 @@ async function boot() {
       G.waves.update(gdt);
       G.enemies.update(gdt);
       G.proj.update(gdt);
+      G.truck.update(gdt);
       G.cards.update(dt, G.player.aimRays());
       G.fx.update(gdt);
       G.hud.update(dt);

@@ -189,7 +189,7 @@ export class Hud {
     setFont(g, 18, FB);
     g.fillStyle = '#ff9a5a';
     const left = G.waves.active ? G.waves.remaining() : 0;
-    g.fillText(G.state === 'wave' ? `PUNKS: ${left}` : G.state === 'upgrade' ? 'ESCOLHA UPGRADE' : G.state === 'dead' ? 'GAME OVER' : '', x0, 82);
+    g.fillText(G.state === 'wave' ? `PUNKS: ${left}` : G.state === 'cleared' ? 'CAMINHÃO À VISTA' : G.state === 'dead' ? 'GAME OVER' : '', x0, 82);
     setFont(g, 26, FB);
     g.fillStyle = '#ffffff';
     g.fillText(String(Math.floor(G.score)).padStart(7, '0'), x0, 120);

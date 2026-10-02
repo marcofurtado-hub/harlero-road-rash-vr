@@ -26,18 +26,18 @@ python3 serve.py
 ## Controles
 
 **VR (Touch controllers)**
-| Ação | Botão |
+| Ação | Como |
 |---|---|
-| **Pilotar (guidão)** | leve a mão até a manopla do guidão e **segure o GRIP**; gire o controle no eixo horizontal (ou empurre/puxe a manopla) pra virar. Funciona com uma mão só: arma na direita, guidão na esquerda |
-| Pilotar (alternativo) | **Analógico** ← → quando nenhuma mão está no guidão |
-| Pegar arma | leve a mão até um coldre do lado direito (aros dourados) e aperte **GRIP** |
-| Guardar / trocar arma | aperte **GRIP** perto de um coldre (com outra arma: troca) |
-| Atirar | **Gatilho**. Munição infinita! |
-| Acelerar / frear | **Analógico esquerdo** ↑ / ↓ |
-| Buzina | **A / X** |
-| Recentralizar | segure **B / Y** |
+| Atirar | **Gatilho direito**. A arma fica sempre na mão direita, com munição infinita e mira assistida |
+| Trocar arma | **A** (próxima) / **B** (anterior) |
+| Pilotar com a mão | **mão esquerda**: segure o **GRIP** (em qualquer lugar) e gire o controle, mova a mão pro lado ou empurre/puxe |
+| Pilotar com a cabeça | **incline a cabeça / o corpo** pro lado (tombar a cabeça também vira) |
+| Pilotar (alternativo) | analógico ← → |
+| Acelerar / frear | analógico ↑ / ↓ |
+| Buzina | **X** |
+| Recentralizar | segure **Y** |
 
-Arsenal: você começa com a **Escopeta Cano Duplo** e ganha automaticamente a **Magnum .50** (fim da onda 1), a **Metralhadora** (onda 2) e a **Bazuca** (onda 3). Depois da onda 4 aparecem nas cartas a Escopeta Automática, a Mini-Gatling e a guitarra **Flying V Laser**.
+Sem menus de upgrade: **cada punk derrubado recupera um pouco de vida** e, no fim de cada onda, um **caminhão desgovernado** passa costurando a pista, derruba um baú e a arma nova voa direto pra sua mão. Ordem: Escopeta Cano Duplo (início) → Magnum .50 → Metralhadora → Bazuca → Escopeta Automática → Mini-Gatling → Flying V Laser. Depois disso, cada baú turbina todas as armas.
 
 **PC (para testar sem o headset)**: mouse mira e atira (clique no jogo pra prender o mouse; se o navegador não deixar, a mira segue o cursor), **A/D** pilota, **W/S** acelera/freia, **1-4** ou rodinha troca a arma, **Espaço** buzina.
 
@@ -57,8 +57,8 @@ Para testar só no PC também dá pra usar `python3 serve.py --http` e abrir `ht
   - **Caveira**: sniper com mira laser vermelha. Quando o laser pisca, desvie!
   - **Chefão**: picape monstro com metralhadora giratória, foguetes teleguiados (dá pra derrubar no tiro), barris jogados na pista e reforços. Os tanques de combustível vermelhos são pontos fracos.
 - **7 armas com munição infinita**: Escopeta Cano Duplo → Magnum .50 dourada (perfura) → Metralhadora → Bazuca → Escopeta Automática → Mini-Gatling → **Flying V Laser** (uma guitarra que solta um feixe contínuo).
-- **Upgrades entre ondas**: atire numa de 3 cartas (nova arma, turbinar arma até o nível 5, ou perks como munição explosiva, bala perfurante, vampiro, tempo de bala, jaqueta blindada e regeneração).
-- **Pista viva**: barris explosivos (atire neles perto dos punks!), carros abandonados, cones, caixas de vida e a palheta **Fúria do Rock** (dano dobrado por 10 s, com solo de guitarra).
+- **Caminhão desgovernado** entre as ondas, que derruba o baú com a arma nova (com câmera lenta quando ela salta).
+- **Pista viva**: barris explosivos (atire neles perto dos punks!), carros abandonados, cones, e a palheta **Fúria do Rock** (dano dobrado por 10 s, com solo de guitarra).
 - **Combos**, headshots, ragdoll dos punks voando, explosões em cadeia, vibração nos controles.
 - **Rock procedural**: bateria, baixo, guitarra distorcida em estéreo e solos, que mudam de intensidade (menu, combate, chefão). Use fone!
 

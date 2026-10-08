@@ -583,9 +583,77 @@ export class AudioSys {
     return g;
   }
 
+  // ------------------------------------------------ sons de tiro do Chicken Rancher (copiados 1:1)
+  crTone(freq, dur, type = 'sine', vol = 0.2, attack = 0.005, freqEnd, when = 0) {
+    const ctx = this.ctx;
+    const t0 = ctx.currentTime + when;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    if (freqEnd !== undefined) osc.frequency.exponentialRampToValueAtTime(Math.max(20, freqEnd), t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + attack);
+    g.gain.exponentialRampToValueAtTime(0.0008, t0 + dur);
+    osc.connect(g).connect(this.crOut);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.05);
+  }
+  crNoise(dur, vol, type = 'bandpass', freq = 1000, q = 1) {
+    const ctx = this.ctx;
+    const t0 = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuf;
+    const f = ctx.createBiquadFilter();
+    f.type = type;
+    f.frequency.value = freq;
+    f.Q.value = q;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, t0);
+    g.gain.exponentialRampToValueAtTime(0.0008, t0 + dur);
+    src.connect(f).connect(g).connect(this.crOut);
+    src.start(t0, Math.random() * 0.4, dur + 0.05);
+  }
+  crGun(kind) {
+    if (!this.crOut) {
+      // o rancho toca os tiros um pouco mais alto que o resto dos efeitos
+      this.crOut = this.ctx.createGain();
+      this.crOut.gain.value = 1.6;
+      this.crOut.connect(this.sfxBus);
+    }
+    const now = performance.now();
+    const gap = { gatling: 40, tommy: 40, magnum: 40 }[kind] || 0;
+    if (gap && this.crLast && now - this.crLast < gap) return;
+    this.crLast = now;
+    switch (kind) {
+      case 'shotgun': // playShotgunShot
+        this.crTone(900, 0.06, 'square', 0.12);
+        this.crNoise(0.35, 0.9, 'lowpass', 800, 1);
+        this.crTone(70, 0.45, 'sine', 0.5, 0.005, 28);
+        break;
+      case 'tommy': // playGatlingShot, um tico mais grave
+        this.crNoise(0.045, 0.32, 'bandpass', 1500, 1);
+        this.crTone(110, 0.07, 'sine', 0.22, 0.005, 58);
+        break;
+      case 'gatling': // playGatlingShot
+        this.crNoise(0.04, 0.3, 'bandpass', 1700, 1);
+        this.crTone(125, 0.06, 'sine', 0.2, 0.005, 65);
+        break;
+      case 'magnum': // playPistol, mais encorpado
+        this.crTone(1100, 0.05, 'square', 0.12, 0.002, 500);
+        this.crNoise(0.14, 0.6, 'bandpass', 1600, 1);
+        this.crTone(110, 0.3, 'sine', 0.45, 0.003, 40);
+        break;
+      default:
+        return false;
+    }
+    return true;
+  }
+
   // ------------------------------------------------ efeitos
   gun(kind, pos) {
     if (!this.ctx) return;
+    if (this.crGun(kind)) return;
     const P = GUN_SFX[kind] || GUN_SFX.pistol;
     const ctx = this.ctx;
     const t = this.t;
@@ -798,6 +866,19 @@ export class AudioSys {
         this.crash(t + 0.2);
         break;
       }
+      case 'squeal':
+        this.blip(1300, 0.45, 0.12, 'sawtooth', null, 900);
+        this.noiseHit(0.5, 3000, 'bandpass', 0.25);
+        break;
+      case 'boost': {
+        this.noiseHit(0.8, 1500, 'bandpass', 0.5);
+        this.blip(180, 0.7, 0.3, 'sawtooth', null, 720);
+        break;
+      }
+      case 'carhit':
+        this.blip(1800 + Math.random() * 600, 0.05, 0.07, 'triangle', pos, 1200);
+        this.noiseHit(0.05, 2500, 'bandpass', 0.15, pos);
+        break;
       case 'crit':
         this.blip(2200, 0.08, 0.14, 'square');
         this.blip(3300, 0.1, 0.08, 'triangle');

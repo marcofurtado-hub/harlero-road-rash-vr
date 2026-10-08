@@ -184,6 +184,8 @@ export class Player {
     this.sk = {}; // habilidades (id -> nível)
     this.shieldT = 0;
     this.barThr = 0;
+    this.slipT = 0;
+    this.boostT = 0;
     this.hp = this.stats.maxHp;
     this.hurtFlash = 0;
     this.invulnT = 0;
@@ -293,6 +295,7 @@ export class Player {
     const gun = hand.held;
     if (!gun) return;
     gun.stopBeam();
+    gun.held = false;
     hand.held = null;
     gun.holder = null;
     gun.glove.visible = false;
@@ -455,6 +458,24 @@ export class Player {
   push(v) {
     this.pushV += v;
   }
+  // mancha de óleo: a moto perde a aderência e desliza de lado
+  slip(fromX) {
+    if (G.state === 'title' || G.state === 'dead') return;
+    if (this.slipT <= 0) {
+      this.slipDir = this.x >= fromX ? 1 : -1;
+      if (Math.random() < 0.35) this.slipDir *= -1;
+      G.audio.play('squeal');
+      G.fx.text('ÓLEO!', _v.set(this.x, 2, -3.2), '#c0c0c0', 0.4, 0.6);
+    }
+    this.slipT = 1.1;
+  }
+  // faixa de turbo: empurrão de velocidade por uns segundos
+  boost() {
+    this.boostT = 2.6;
+    G.audio.play('boost');
+    this.pulseAll(0.8, 220);
+    G.fx.text('TURBO!', _v.set(this.x, 2.1, -3.4), '#40e8ff', 0.5, 0.8);
+  }
   crash() {
     this.speed *= 0.55;
     this.crashT = 0.6;
@@ -538,7 +559,15 @@ export class Player {
       thr = -1;
     }
     this.thr = thr;
-    this.vx = damp(this.vx, steer * 11, 10, dt) + this.pushV;
+    // no óleo quase não tem aderência: a moto escorrega pro lado e o guidão responde pouco
+    const slip = this.slipT > 0 ? Math.min(1, this.slipT / 0.5) : 0;
+    if (this.slipT > 0) {
+      this.slipT -= dt;
+      this.pushV += this.slipDir * 9 * slip * dt;
+      if (Math.random() < 0.5) G.fx.burst('smoke', _v.set(this.x, 0.1, 0.9), 1, { speed: 0.5, size: 0.3, sizeEnd: 0.8, life: 0.6, anchor: 1, alpha: 0.5 });
+      if (Math.random() < 0.3) this.pulseAll(0.3, 40);
+    }
+    this.vx = damp(this.vx, steer * 11, 10 - 8.6 * slip, dt) + this.pushV;
     this.pushV = 0;
     this.x += this.vx * dt;
     if (Math.abs(this.x) > ROAD_HALF) {
@@ -549,9 +578,14 @@ export class Player {
     let target = G.state === 'title' ? 16 : G.state === 'dead' ? 4 : thr >= 0 ? V_CRUISE + thr * (V_MAX - V_CRUISE) : V_CRUISE + thr * (V_CRUISE - V_BRAKE);
     // ladeira abaixo embala, ladeira acima segura
     if (G.state !== 'dead') target += clamp(-TRACK_STATE.slope * 34, -6, 9);
+    // turbo da faixa
+    if (this.boostT > 0) {
+      this.boostT -= dt;
+      target += 24 * Math.min(1, this.boostT / 1.2);
+    }
     if (offroad) target = Math.min(target, 24);
     if (this.crashT > 0) this.crashT -= dt;
-    const k = this.crashT > 0 ? 0.5 : target > this.speed ? 1.7 : 2.4;
+    const k = this.crashT > 0 ? 0.5 : this.boostT > 0 ? 3.5 : target > this.speed ? 1.7 : 2.4;
     this.speed = damp(this.speed, target, k, dt);
     G.speed = this.speed;
     if (offroad && Math.random() < 0.3) this.pulseAll(0.15, 20);

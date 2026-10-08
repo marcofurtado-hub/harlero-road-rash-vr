@@ -17,6 +17,8 @@ export const MAT = {
   lit: curveMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true })),
   glow: curveMaterial(new THREE.MeshBasicMaterial({ vertexColors: true })),
   flash: curveMaterial(new THREE.MeshBasicMaterial({ color: 0xffffff })),
+  // carro queimado depois de explodir
+  burnt: curveMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, color: 0x2a2420 })),
   // punk congelado (Bala Congelante)
   ice: curveMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, color: 0x9ad8ff, emissive: 0x123a5a })),
   far: new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }),

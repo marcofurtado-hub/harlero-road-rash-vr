@@ -5,6 +5,7 @@ import * as Models from './models.js';
 import { trafficCar } from './scenery.js';
 import { toWorld, fromWorld } from './curve.js';
 import { raySphere } from './projectiles.js';
+import { MAT } from './builder.js';
 import { canvasTex } from './text.js';
 import { curveMaterial } from './curve.js';
 
@@ -34,6 +35,84 @@ function iconMat(kind) {
   return iconMats[kind];
 }
 const iconGeo = new THREE.PlaneGeometry(0.75, 0.75);
+
+// manchas na pista: óleo (escorrega) e faixa de turbo (acelera)
+const decalTex = {};
+function oilTex() {
+  return (decalTex.oil ||= canvasTex(256, 512, (g, w, h) => {
+    g.clearRect(0, 0, w, h);
+    for (let i = 0; i < 9; i++) {
+      const x = w / 2 + (Math.random() - 0.5) * w * 0.5;
+      const y = h * 0.12 + Math.random() * h * 0.76;
+      const r = 40 + Math.random() * 60;
+      const gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, 'rgba(8,8,12,0.95)');
+      gr.addColorStop(0.75, 'rgba(14,12,20,0.9)');
+      gr.addColorStop(1, 'rgba(14,12,20,0)');
+      g.fillStyle = gr;
+      g.beginPath();
+      g.ellipse(x, y, r, r * (1.2 + Math.random()), Math.random() * 3, 0, Math.PI * 2);
+      g.fill();
+    }
+    // brilho arco-íris do óleo
+    g.globalCompositeOperation = 'source-atop';
+    for (let i = 0; i < 14; i++) {
+      g.strokeStyle = `hsla(${Math.random() * 360},90%,60%,0.35)`;
+      g.lineWidth = 3 + Math.random() * 5;
+      g.beginPath();
+      g.ellipse(w / 2 + (Math.random() - 0.5) * 80, h * (0.2 + Math.random() * 0.6), 20 + Math.random() * 50, 30 + Math.random() * 60, Math.random() * 3, 0, Math.PI * 1.3);
+      g.stroke();
+    }
+  }));
+}
+function boostTex() {
+  if (decalTex.boost) return decalTex.boost;
+  const t = canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = 'rgba(0,30,60,0.55)';
+    g.fillRect(0, 0, w, h);
+    g.strokeStyle = '#ffe040';
+    g.lineWidth = 10;
+    g.strokeRect(5, 5, w - 10, h - 10);
+    // setas apontando pra frente da estrada
+    for (let k = 0; k < 2; k++) {
+      const y0 = k * (h / 2) + h * 0.38;
+      g.beginPath();
+      g.moveTo(w * 0.12, y0 + 40);
+      g.lineTo(w / 2, y0 - 40);
+      g.lineTo(w * 0.88, y0 + 40);
+      g.lineTo(w * 0.88, y0 + 80);
+      g.lineTo(w / 2, y0);
+      g.lineTo(w * 0.12, y0 + 80);
+      g.closePath();
+      g.fillStyle = k ? '#40e8ff' : '#ffffff';
+      g.fill();
+    }
+  });
+  t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(1, 2);
+  return (decalTex.boost = t);
+}
+const decalMats = {};
+const decalMat = (k) =>
+  (decalMats[k] ||= curveMaterial(
+    new THREE.MeshBasicMaterial({
+      map: k === 'oil' ? oilTex() : boostTex(), transparent: true, depthWrite: false, fog: true,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+      blending: k === 'boost' ? THREE.AdditiveBlending : THREE.NormalBlending,
+    })
+  ));
+const DECAL = { oil: { w: 3.4, l: 10 }, boost: { w: 3.2, l: 7 } };
+const decalGeo = {};
+const geoFor = (k) => {
+  if (!decalGeo[k]) {
+    const g = new THREE.PlaneGeometry(DECAL[k].w, DECAL[k].l, 1, 6);
+    g.rotateX(-Math.PI / 2);
+    decalGeo[k] = g;
+  }
+  return decalGeo[k];
+};
+// carros: vida até explodir (alguns tiros)
+const CAR_HP = { car: 240, wreck: 180 };
 const ringMats = {};
 const ringMat = (kind) =>
   (ringMats[kind] ||= curveMaterial(new THREE.MeshBasicMaterial({ color: POW[kind].ring, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false })));
@@ -79,6 +158,17 @@ export class Hazards {
         obj = Models.cone();
         hw = 0.3;
         break;
+      case 'oil':
+      case 'boost': {
+        obj = new THREE.Group();
+        const m = new THREE.Mesh(geoFor(kind), decalMat(kind));
+        m.position.y = 0.03;
+        m.frustumCulled = false;
+        m.userData.shared = true;
+        obj.add(m);
+        hw = DECAL[kind].w / 2;
+        break;
+      }
       case 'health':
       case 'fury':
       case 'gold':
@@ -118,7 +208,9 @@ export class Hazards {
     }
     obj.position.set(x, 0, z);
     this.scene.add(obj);
-    const h = { kind, obj, x, z, hw, hp: 1, dead: false, t: 0, hitP: false, burned: new Set(), vel: null, cs: o.cs || 0 };
+    const h = { kind, obj, x, z, hw, hp: CAR_HP[kind] || 1, dead: false, t: 0, hitP: false, burned: new Set(), vel: null, cs: o.cs || 0, decal: !!DECAL[kind] };
+    if (h.decal) h.hl = DECAL[kind].l / 2;
+    h.maxHp = h.hp;
     this.list.push(h);
     return h;
   }
@@ -139,22 +231,55 @@ export class Hazards {
       if (h.kind === 'barrel') {
         toWorld(_v.set(h.x, 0.5, h.z));
         const t = raySphere(o, d, _v, 0.45);
-        if (t >= 0 && t < max) out.push({ t, obj: this.wrap(h), part: 'barrel' });
+        if (t >= 0 && t < max) out.push({ t, obj: this.wrap(h), part: 'barrel', id: h });
       } else if (POW[h.kind]) {
         toWorld(_v.set(h.x, h.obj.position.y + 0.2, h.z));
         const t = raySphere(o, d, _v, 0.9);
-        if (t >= 0 && t < max) out.push({ t, obj: this.wrap(h), part: 'pow' });
+        if (t >= 0 && t < max) out.push({ t, obj: this.wrap(h), part: 'pow', id: h });
+      } else if ((h.kind === 'car' || h.kind === 'wreck') && !h.vel) {
+        let best = Infinity;
+        for (const dz of [-1.5, 0, 1.5]) {
+          toWorld(_v.set(h.x, h.obj.position.y + 0.85, h.z + dz));
+          const t = raySphere(o, d, _v, 1.05);
+          if (t >= 0 && t < best) best = t;
+        }
+        if (best < max) out.push({ t: best, obj: this.wrap(h), part: 'car', id: h });
       }
     }
   }
   wrap(h) {
     return {
-      takeHit: () => {
+      takeHit: (dmg, part, pt) => {
         if (POW[h.kind]) this.collect(h);
+        else if (h.kind === 'car' || h.kind === 'wreck') this.damageCar(h, dmg || 20, pt);
         else this.explodeBarrel(h, true);
         return { solid: true };
       },
     };
+  }
+
+  damageCar(h, dmg, pt) {
+    if (h.dead || h.vel) return;
+    h.hp -= dmg;
+    if (pt) G.fx.spark(pt, 5);
+    if (G.time - (h.clankT || 0) > 0.07) {
+      h.clankT = G.time;
+      G.audio.play('carhit', pt);
+    }
+    if (h.hp <= 0) this.explodeCar(h);
+  }
+  explodeCar(h) {
+    const p = toWorld(new THREE.Vector3(h.x, 1, h.z));
+    G.explode(p, 6.5, 190, { hurtPlayer: true, playerDmg: 20, fire: true });
+    G.fx.text('CARRO EXPLODIU!', toWorld(new THREE.Vector3(h.x, 3, h.z)), '#ff8a20', 0.6);
+    G.score += 150;
+    G.player.pulseAll(0.7, 140);
+    // voa girando e cai pegando fogo
+    h.vel = new THREE.Vector3(rand(-3, 3), rand(8, 11), rand(-5, -2));
+    h.burning = true;
+    h.obj.traverse((o) => {
+      if (o.isMesh && o.material === MAT.lit) o.material = MAT.burnt;
+    });
   }
 
   collect(h) {
@@ -185,10 +310,11 @@ export class Hazards {
   blast(pa, r) {
     const p = fromWorld(pa.clone()); // explosão vem em coordenada aparente
     for (const h of this.list) {
-      if (h.dead || h.kind !== 'barrel') continue;
-      if (Math.hypot(h.x - p.x, h.z - p.z) < r * 0.8) {
-        h.chainT = 0.12;
-      }
+      if (h.dead) continue;
+      const d = Math.hypot(h.x - p.x, h.z - p.z);
+      if (h.kind === 'barrel' && d < r * 0.8) h.chainT = 0.12;
+      // explosão perto de carro machuca o carro (reação em cadeia no frame seguinte)
+      else if ((h.kind === 'car' || h.kind === 'wreck') && !h.vel && d < r + 1.5) h.pendDmg = (h.pendDmg || 0) + 150 * (1 - d / (r + 1.5));
     }
   }
 
@@ -222,6 +348,11 @@ export class Hazards {
         h.chainT -= dt;
         if (h.chainT <= 0) this.explodeBarrel(h, false);
       }
+      if (h.pendDmg) {
+        const d = h.pendDmg;
+        h.pendDmg = 0;
+        this.damageCar(h, d, null);
+      }
       if (h.vel) {
         h.vel.y -= 14 * dt;
         h.vel.z += speed * 1.2 * dt;
@@ -232,6 +363,15 @@ export class Hazards {
         if (h.obj.position.y < 0) {
           h.obj.position.y = 0;
           h.vel.y *= -0.3;
+          if (h.burning && Math.abs(h.vel.y) < 1.5) {
+            // vira um destroço em chamas parado na pista
+            h.vel = null;
+            h.obj.rotation.set(0, h.obj.rotation.y + rand(-0.4, 0.4), rand(-0.1, 0.1));
+            h.kind = 'wreck';
+            h.hp = h.maxHp = 1e9;
+            h.cs = 0;
+            h.hitP = false;
+          }
         }
       } else {
         // carros do trânsito andam (cs = velocidade própria); o resto fica parado na pista
@@ -249,12 +389,40 @@ export class Hazards {
       if (POW[h.kind]) {
         h.obj.position.y = 0.9 + Math.sin(h.t * 3) * 0.12;
         h.obj.children[0].rotation.y += dt * 2.2;
+      } else if ((h.kind === 'car' || h.kind === 'wreck') && (h.hp < h.maxHp * 0.6 || h.burning)) {
+        const k = h.burning ? 1 : 1 - h.hp / h.maxHp;
+        if (Math.random() < k * 0.6) G.fx.smoke(toWorld(_v.set(h.x, h.obj.position.y + 1.3, h.z - 1.2)), 1, 0.5);
+        if ((h.burning || h.hp < h.maxHp * 0.3) && Math.random() < 0.5) G.fx.fire(toWorld(_v.set(h.x + rand(-0.6, 0.6), h.obj.position.y + 1.1, h.z - 1.4)), 1, 0.45, 1);
+      } else if (h.kind === 'boost') {
+        h.obj.children[0].material.map.offset.y -= dt * 1.6;
       } else if (h.kind === 'fire') {
         for (const c of h.obj.children) c.scale.set(1, 0.7 + 0.4 * Math.abs(Math.sin(h.t * 9 + c.userData.ph)), 1);
         if (Math.random() < 0.5) G.fx.fire(toWorld(_v.set(h.x + rand(-1, 1), 0.3, h.z + rand(-1, 1))), 1, 0.5, 1);
       }
+      // manchas: óleo escorrega enquanto você passa por cima; turbo dispara uma vez
+      if (h.decal) {
+        if (Math.abs(h.z) < h.hl && Math.abs(h.x - P.x) < h.hw + 0.2) {
+          if (h.kind === 'oil') P.slip(h.x);
+          else if (!h.used) {
+            h.used = true;
+            P.boost();
+          }
+        }
+        if (h.kind === 'oil') {
+          for (const e of G.enemies.list) {
+            if (e.dying || e.isBoss || h.burned.has(e)) continue;
+            if (Math.abs(e.z - h.z) < h.hl && Math.abs(e.x - h.x) < h.hw) {
+              h.burned.add(e);
+              if (chance(0.45)) {
+                G.fx.text('ESCORREGOU!', toWorld(_v.set(e.x, 2.2, e.z)), '#ffd21e', 0.5);
+                e.die({ crash: true });
+              } else e.vx += (chance(0.5) ? -1 : 1) * 6;
+            }
+          }
+        }
+      }
       // colisão com o jogador
-      if (!h.dead && !h.hitP && !h.vel && h.z > -1.1 && h.z < 1.1 && Math.abs(h.x - P.x) < h.hw + 0.35) {
+      else if (!h.dead && !h.hitP && !h.vel && h.z > -1.1 && h.z < 1.1 && Math.abs(h.x - P.x) < h.hw + 0.35) {
         h.hitP = true;
         this.onPlayer(h);
       }
@@ -275,7 +443,7 @@ export class Hazards {
           }
         }
       }
-      if (h.dead || h.z > 45 || h.z < -330 || h.obj.position.y < -5) {
+      if (h.dead || h.z > 45 + (h.hl || 0) || h.z < -330 || h.obj.position.y < -5) {
         this.kill(h);
         this.list.splice(i, 1);
       }
@@ -327,13 +495,18 @@ export class Hazards {
 
   spawnPattern() {
     const z = -270;
-    const kind = weightedPick(['barrel', 'barrels', 'wreck', 'cones', 'traffic', 'overtake'], (k) => ({ barrel: 2.6, barrels: 1.3, wreck: 1.2, cones: 1.4, traffic: 3.2, overtake: 1 })[k]);
+    const kind = weightedPick(['barrel', 'barrels', 'wreck', 'cones', 'traffic', 'overtake', 'oil', 'boost', 'boostRow'], (k) => ({ barrel: 2.4, barrels: 1.2, wreck: 1.1, cones: 1.2, traffic: 3.2, overtake: 1, oil: 1.3, boost: 1.4, boostRow: 0.5 })[k]);
     const lane = pick(LANES) + rand(-0.8, 0.8);
     if (kind === 'traffic') {
       // carro mais lento na sua frente (às vezes dois lado a lado)
       this.spawn('car', clamp(pick(LANES), -6.5, 6.5), z, { cs: rand(15, 22) });
       if (chance(0.3)) this.spawn('car', clamp(pick(LANES), -6.5, 6.5), z - 14, { cs: rand(15, 22) });
     } else if (kind === 'overtake') this.spawn('car', clamp(pick(LANES), -6.5, 6.5), 40, { cs: rand(38, 44) });
+    else if (kind === 'oil') {
+      this.spawn('oil', clamp(lane, -6.5, 6.5), z);
+      if (chance(0.35)) this.spawn('oil', clamp(-lane, -6.5, 6.5), z - 18);
+    } else if (kind === 'boost') this.spawn('boost', clamp(lane, -6.5, 6.5), z);
+    else if (kind === 'boostRow') for (const x of [-5.4, 0, 5.4]) this.spawn('boost', x, z);
     else if (kind === 'barrel') this.spawn('barrel', lane, z);
     else if (kind === 'barrels') {
       const n = chance(0.5) ? 2 : 3;

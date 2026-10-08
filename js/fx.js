@@ -162,6 +162,9 @@ const COLS = {
   ice: [0x9ae8ff, 0xd8f8ff, 0x60c8ff],
   purple: [0xc070ff, 0xe0b0ff, 0xffffff],
   gold: [0xffe060, 0xffc020, 0xfff0a0],
+  cardboard: [0xb8875a, 0xa0703f, 0xd9c79c, 0xc4946a],
+  wood: [0xc8985a, 0x8a6236, 0xb8884c],
+  paper: [0xffffff, 0xf0eadc, 0xc41e2a],
 };
 
 export class FX {
@@ -269,7 +272,7 @@ export class FX {
   }
 
   burst(kind, p, n, o = {}) {
-    const sys = kind === 'smoke' || kind === 'blood' || kind === 'debris' || kind === 'dust' ? this.norm : this.add;
+    const sys = kind === 'smoke' || kind === 'blood' || kind === 'debris' || kind === 'dust' || kind === 'cardboard' || kind === 'wood' || kind === 'paper' ? this.norm : this.add;
     const cols = COLS[kind] || COLS.spark;
     const sp = o.speed ?? 4;
     for (let i = 0; i < n; i++) {
@@ -312,7 +315,8 @@ export class FX {
   }
   muzzle(p, dir, color = 'fire') {
     this.burst(color, p, 5, { speed: 2, size: 0.07, sizeEnd: 0.02, life: 0.08, vx: dir.x * 6, vy: dir.y * 6, vz: dir.z * 6, anchor: 0 });
-    this.burst('smoke', p, 1, { speed: 0.3, size: 0.06, sizeEnd: 0.3, life: 0.5, up: 0.4, anchor: 0.8, alpha: 0.35 });
+    // fumacinha presa no cano (não voa na cara do piloto, mesmo com a gatling a 20 tiros/s)
+    if (Math.random() < 0.4) this.burst('smoke', p, 1, { speed: 0.15, size: 0.04, sizeEnd: 0.16, life: 0.35, up: 0.3, anchor: 0.05, alpha: 0.22 });
   }
 
   explosion(p, r = 4) {

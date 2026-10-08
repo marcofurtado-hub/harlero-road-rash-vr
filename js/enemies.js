@@ -130,7 +130,7 @@ class Base {
       apparent(w);
     }
   }
-  rayHits(o, d, max, out) {
+  rayHits(o, d, max, out, extra = 0) {
     if (this.dying) return;
     let best = Infinity;
     let bi = -1;
@@ -139,7 +139,7 @@ class Base {
     for (let i = 0; i < this.spheres.length; i++) {
       const s = this.spheres[i];
       if (s.off) continue;
-      const t = raySphere(o, d, this.sw[i], s.r);
+      const t = raySphere(o, d, this.sw[i], s.r + extra);
       if (t < 0) continue;
       if (t < best) {
         best = t;
@@ -936,8 +936,8 @@ export class Enemies {
     }
     G.audio.setEnemyEngine(nearest, pan, rel);
   }
-  rayHits(o, d, max, out) {
-    for (const e of this.list) e.rayHits(o, d, max, out);
+  rayHits(o, d, max, out, extra = 0) {
+    for (const e of this.list) e.rayHits(o, d, max, out, extra);
   }
   // alvo preferido dentro do cone de mira; se não houver, o mais perto à frente
   acquire(o, dir, skip = null) {

@@ -36,6 +36,7 @@ export class TruckEvent {
     this.reward = reward;
     this.onDone = onDone;
     this.phase = 'chase';
+    this.flaps = null;
     this.t = 0;
     const P = G.player;
     const m = Models.runawayTruck();
@@ -120,6 +121,14 @@ export class TruckEvent {
         }
       } else {
         c.position.z += speed * dt;
+        // abas abrindo / tampa voando
+        if (this.flaps) for (const fl of this.flaps) {
+          fl.v -= 12 * dt;
+          fl.f.position.y += fl.v * dt;
+          fl.f.position.x += fl.s * 1.2 * dt;
+          fl.f.rotation.z += fl.s * 6 * dt;
+          if (fl.f.position.y < 0) fl.f.visible = false;
+        }
         if (c.position.z > 30) {
           this.scene.remove(c);
           this.chest = null;
@@ -172,14 +181,14 @@ export class TruckEvent {
   dropChest() {
     this.phase = 'drop';
     this.boomT = this.t;
-    const c = Models.weaponChest();
+    const c = Models.parcel();
     c.position.set(this.x, 1.6, this.z + 3.5);
     const P = G.player;
-    c.userData = { vel: new THREE.Vector3((P.x - this.x) * 0.9, 4.5, 9), spin: rand(4, 7), landed: false };
+    Object.assign(c.userData, { vel: new THREE.Vector3((P.x - this.x) * 0.9, 4.5, 9), spin: rand(4, 7), landed: false });
     this.scene.add(c);
     this.chest = c;
     G.audio.play('crash', c.position);
-    G.fx.text('O BAÚ CAIU!', toWorld(_v.copy(c.position).add(_w.set(0, 1.5, 0))), '#ffd21e', 0.6);
+    G.fx.text('CAIU UMA ENCOMENDA!', toWorld(_v.copy(c.position).add(_w.set(0, 1.5, 0))), '#ffd21e', 0.6);
   }
 
   burstChest() {
@@ -188,13 +197,13 @@ export class TruckEvent {
     const p = toWorld(_v.copy(flatP));
     G.audio.play('crash', p);
     G.audio.play('pickup');
-    G.fx.burst('debris', p, 20, { speed: 6, size: 0.14, life: 1, grav: 12, up: 3, anchor: 0.7 });
-    G.fx.burst('spark', p, 30, { speed: 5, size: 0.08, life: 0.6, up: 2, anchor: 0.5 });
+    // a caixa estoura: abas/tampa voam e sobe papelão/lasca de madeira
+    const wood = c.userData.wood;
+    G.fx.burst(wood ? 'wood' : 'cardboard', p, 34, { speed: 6, size: 0.16, sizeEnd: 0.12, life: 1.1, grav: 12, up: 3.5, anchor: 0.7, drag: 0.5 });
+    G.fx.burst('paper', p, 18, { speed: 3, size: 0.1, sizeEnd: 0.08, life: 1.4, grav: 2, up: 3, anchor: 0.7, drag: 1.5 });
+    G.fx.burst('spark', p, 16, { speed: 4, size: 0.07, life: 0.5, up: 2, anchor: 0.5 });
     G.fx.dust(p, 10);
-    if (c.userData && c.children.length) {
-      const lid = c.children.find((o) => o.isMesh && o.scale.y < 1);
-      if (lid) lid.visible = false;
-    }
+    this.flaps = c.userData.flaps.map((f) => ({ f, s: f.userData.side || (Math.random() < 0.5 ? -1 : 1), v: rand(4, 6) }));
     // a arma (ou turbo) salta do baú
     let model;
     if (this.reward === 'turbo') {

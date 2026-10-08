@@ -28,7 +28,7 @@ python3 serve.py
 **VR (Touch controllers)**
 | Ação | Como |
 |---|---|
-| Atirar | **Gatilho direito**. A arma fica sempre na mão direita, com munição infinita e mira assistida |
+| Atirar | **Gatilho direito**. A arma fica sempre na mão direita, com munição infinita. Sem mira assistida: um laser com pontinho vermelho mostra onde a bala vai bater |
 | Trocar arma | **A** (próxima) / **B** (anterior) |
 | Pilotar com a mão | **mão esquerda**: segure o **GRIP** (em qualquer lugar) e gire o controle, mova a mão pro lado ou empurre/puxe |
 | Pilotar com a cabeça | **incline a cabeça / o corpo** pro lado (tombar a cabeça também vira) |
@@ -39,7 +39,7 @@ python3 serve.py
 | Recentralizar | segure **Y** |
 | Ligar/desligar música | clique no **analógico esquerdo** (ou atire na carta 🎸 MÚSICA no menu) |
 
-Sem menus: **cada punk derrubado recupera um pouco de vida**. No fim de cada onda, um **caminhão desgovernado** passa costurando a pista, derruba um baú e a arma nova voa direto pra sua mão. Logo depois aparecem **3 portais de habilidade** atravessando a estrada (ATAQUE à esquerda, EFEITO no meio, DEFESA à direita): é só passar de moto pelo que você quer. Sem fazer nada, você pega o do meio.
+Sem menus: **cada punk derrubado recupera um pouco de vida**. No fim de cada onda, um **caminhão de entregas da 66 EXPRESS** passa desgovernado costurando a pista, derruba uma encomenda (caixa de papelão com fita e etiqueta, ou engradado de madeira) e a arma nova voa direto pra sua mão. Logo depois aparecem **3 portais de habilidade** atravessando a estrada (ATAQUE à esquerda, EFEITO no meio, DEFESA à direita): é só passar de moto pelo que você quer. Sem fazer nada, você pega o do meio.
 
 **Acelerar vale a pena**: os pontos de cada abate são multiplicados pela velocidade (até x1,5 no talo), mas o trânsito e os obstáculos chegam mais rápido. Ladeira abaixo a moto embala sozinha.
 
@@ -73,8 +73,10 @@ Para testar só no PC também dá pra usar `python3 serve.py --http` e abrir `ht
   - Defesa: **Corvo Atirador** (um corvo de bandana voa do seu lado e atira sozinho), Escudo Cromado, Jaqueta de Couro, Coração V8, Vampiro do Asfalto, Sorte Grande, Combo Mestre e o Pit Stop quando a vida está baixa.
   - Regras: a 1ª escolha sempre tem um ataque épico, chefão dá 2 rodadas de portais e às vezes aparece algo que você já tem pra subir de nível.
 - **Power-ups** que caem dos punks (atire na caixa ou passe por cima): ⭐ Bala de Ouro (dano x3), 💣 Bala Explosiva, ⏳ Câmera Lenta (punks e balas a 35%), ❤️ Vida e 🎸 Fúria do Rock.
-- **Caminhão desgovernado** entre as ondas, que derruba o baú com a arma nova (com câmera lenta quando ela salta).
-- **Pista viva**: barris explosivos (atire neles perto dos punks!), carros abandonados, cones e trânsito.
+- **Armas com a sensação do Chicken Rancher**: balas de verdade voando (60 a 120 m/s, colisão por segmento), espalhamento, coice curto, vibração e sons copiados do rancho. A gatling gira os 6 canos e atira na hora, sem aquecer.
+- **Caminhão desgovernado** entre as ondas, que derruba a encomenda com a arma nova (com câmera lenta quando ela salta).
+- **Pista viva**: barris explosivos (atire neles perto dos punks!), cones e trânsito. **Carros explodem depois de alguns tiros** (e levam os punks do lado junto, em reação em cadeia).
+- **Manchas de óleo** que fazem a moto escorregar de lado (e derrubam punks) e **faixas de turbo** com setas que dão um empurrão de velocidade.
 - **Combos**, headshots, ragdoll dos punks voando, explosões em cadeia, vibração nos controles.
 - **Rock procedural**: bateria, baixo, guitarra distorcida em estéreo e solos, que mudam de intensidade (menu, combate, chefão). Use fone!
 

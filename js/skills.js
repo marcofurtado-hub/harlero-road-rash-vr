@@ -23,7 +23,7 @@ export const SKILLS = [
   { id: 'ice', cat: 'fx', rar: 'rare', icon: '❄️', name: 'Bala Congelante', desc: 'punk congelado fica lento e atira menos', max: 2 },
   { id: 'shock', cat: 'fx', rar: 'rare', icon: '🌩️', name: 'Bala Elétrica', desc: 'o choque pula pros punks vizinhos', max: 2 },
   { id: 'boom', cat: 'fx', rar: 'epic', icon: '🧨', name: 'Munição Explosiva', desc: 'acertos causam mini-explosões', max: 2 },
-  { id: 'magnet', cat: 'fx', rar: 'common', icon: '🧲', name: 'Mira Magnética', desc: 'os tiros curvam até os punks', max: 3 },
+  { id: 'big', cat: 'fx', rar: 'common', icon: '🔩', name: 'Bala Grossa', desc: 'balas maiores e mais rápidas', max: 3 },
   // DEFESA
   { id: 'crow', cat: 'def', rar: 'epic', icon: '🐦', name: 'Corvo Atirador', desc: 'um corvo voa do seu lado e atira sozinho', max: 2 },
   { id: 'shield', cat: 'def', rar: 'rare', icon: '🛡️', name: 'Escudo Cromado', desc: 'bloqueia 1 golpe e recarrega', max: 2 },

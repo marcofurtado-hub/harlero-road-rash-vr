@@ -2,6 +2,8 @@
 import * as THREE from 'three';
 import { Builder, MAT } from './builder.js';
 import { pick, rand } from './ctx.js';
+import { curveMaterial } from './curve.js';
+import { canvasTex, FW, FB, fitFont, strokeText } from './text.js';
 
 const PI = Math.PI;
 
@@ -371,6 +373,18 @@ export function runawayTruck() {
   for (const s of [-0.7, 0.7]) b.box(0.3, 0.15, 0.05, 0xff2020, s, 1.0, 3.33, 0, 0, 0, { glow: true });
   for (const s of [-1, 1]) b.cyl(0.08, 0.08, 1.4, 6, C.chrome, s * 1.0, 2.9, -1.5);
   const body = b.build();
+  // pintura da transportadora nas laterais e na porta de trás
+  for (const s of [-1, 1]) {
+    const side = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 2.0, 4, 1), livery('side'));
+    side.rotation.y = s * PI / 2;
+    side.position.set(s * 1.215, 2.25, 0.9);
+    side.frustumCulled = false;
+    body.add(side);
+  }
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 2.0), livery('back'));
+  back.position.set(0, 2.2, 3.34);
+  back.frustumCulled = false;
+  body.add(back);
   const axle = (z) => {
     const ab = new Builder();
     for (const s of [-1, 1]) {
@@ -419,22 +433,147 @@ export function powCrate(color) {
   return b.build();
 }
 
-export function weaponChest() {
+// ---------------------------------------------------------------- transportadora fictícia "66 EXPRESS"
+const texCache = {};
+function livery(kind) {
+  if (texCache['l' + kind]) return texCache['l' + kind];
+  const tex = canvasTex(kind === 'side' ? 1024 : 512, 448, (g, w, h) => {
+    g.fillStyle = '#f4f0e8';
+    g.fillRect(0, 0, w, h);
+    // faixa diagonal vermelha e amarela
+    g.fillStyle = '#c41e2a';
+    g.beginPath();
+    g.moveTo(0, h * 0.68);
+    g.lineTo(w, h * 0.42);
+    g.lineTo(w, h * 0.62);
+    g.lineTo(0, h * 0.88);
+    g.fill();
+    g.fillStyle = '#f2b51c';
+    g.beginPath();
+    g.moveTo(0, h * 0.88);
+    g.lineTo(w, h * 0.62);
+    g.lineTo(w, h * 0.7);
+    g.lineTo(0, h * 0.96);
+    g.fill();
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    fitFont(g, '66 EXPRESS', w * 0.86, kind === 'side' ? 170 : 96, FB);
+    strokeText(g, '66 EXPRESS', w / 2, h * 0.27, '#1a2a5a', '#ffffff', 10);
+    const sub = kind === 'side' ? 'ENTREGA EM QUALQUER BURACO DA ROTA 66' : 'MANTENHA DISTÂNCIA';
+    fitFont(g, sub, w * 0.86, 40, FB);
+    g.fillStyle = '#1a2a5a';
+    g.fillText(sub, w / 2, h * 0.5);
+  });
+  return (texCache['l' + kind] = curveMaterial(new THREE.MeshLambertMaterial({ map: tex })));
+}
+
+function boxLabel(kind) {
+  if (texCache['b' + kind]) return texCache['b' + kind];
+  const tex = canvasTex(256, 256, (g, w, h) => {
+    g.clearRect(0, 0, w, h);
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    if (kind === 'label') {
+      // etiqueta de envio
+      g.fillStyle = '#ffffff';
+      g.fillRect(14, 30, w - 28, h - 60);
+      g.fillStyle = '#c41e2a';
+      g.fillRect(14, 30, w - 28, 44);
+      fitFont(g, '66 EXPRESS', w - 50, 32, FB);
+      g.fillStyle = '#ffffff';
+      g.fillText('66 EXPRESS', w / 2, 53);
+      g.fillStyle = '#111';
+      for (let i = 0; i < 26; i++) g.fillRect(30 + i * 7.5, 92, i % 3 ? 3 : 5, 56); // código de barras
+      g.font = 'bold 22px Arial';
+      g.fillText('PARA: VOCÊ', w / 2, 172);
+      g.font = 'bold 16px Arial';
+      g.fillText('ROTA 66 • KM ???', w / 2, 200);
+    } else if (kind === 'fragile') {
+      g.strokeStyle = '#d01818';
+      g.lineWidth = 9;
+      g.strokeRect(18, 70, w - 36, 116);
+      fitFont(g, 'FRÁGIL', w - 60, 70, FB);
+      g.fillStyle = '#d01818';
+      g.fillText('FRÁGIL', w / 2, 128);
+      g.font = 'bold 54px Arial';
+      g.fillText('↑↑', w / 2, 40);
+      g.fillText('🍷', w / 2, 222);
+    } else {
+      // estêncil do engradado de madeira
+      g.fillStyle = 'rgba(25,15,8,0.85)';
+      fitFont(g, '66 EXPRESS', w - 30, 44, FB);
+      g.fillText('66 EXPRESS', w / 2, 92);
+      fitFont(g, 'CUIDADO • ARMAS', w - 30, 26, FB);
+      g.fillText('CUIDADO • ARMAS', w / 2, 150);
+      g.font = 'bold 60px Arial';
+      g.fillText('↑↑', w / 2, 210);
+    }
+  });
+  return (texCache['b' + kind] = curveMaterial(new THREE.MeshLambertMaterial({ map: tex, transparent: true, alphaTest: 0.1 })));
+}
+
+// encomenda que cai do caminhão: caixa de papelão com fita e etiquetas, ou engradado de madeira
+export function parcel() {
+  const wood = Math.random() < 0.4;
   const b = new Builder();
-  b.box(0.9, 0.5, 0.55, 0x7a4a22, 0, 0.25, 0);
-  for (const y of [0.08, 0.42]) b.box(0.92, 0.06, 0.57, 0xe3b23c, 0, y, 0);
-  for (const x of [-0.42, 0.42]) b.box(0.06, 0.52, 0.57, 0xe3b23c, x, 0.26, 0);
-  b.box(0.12, 0.14, 0.04, 0xe3b23c, 0, 0.3, -0.29);
-  const lid = new Builder();
-  lid.cyl(0.275, 0.275, 0.9, 10, 0x8a5a2a, 0, 0, 0, 0, 0, PI / 2, { sy: 1, sz: 1 });
-  lid.box(0.92, 0.04, 0.57, 0xe3b23c, 0, 0.0, 0);
-  const g = b.build();
-  const lidMesh = lid.mesh();
-  lidMesh.scale.set(1, 0.6, 1);
-  lidMesh.position.set(0, 0.5, 0);
-  g.add(lidMesh);
-  g.userData.lid = lidMesh;
-  return g;
+  const W = 1.0;
+  const H = 0.72;
+  const D = 0.8;
+  const grp = new THREE.Group();
+  const flaps = [];
+  if (wood) {
+    const plank = 0xc8985a;
+    b.box(W, H, D, 0x8a6236, 0, H / 2, 0);
+    for (let i = 0; i < 4; i++) {
+      const y = 0.09 + i * 0.18;
+      b.box(W + 0.02, 0.15, D + 0.02, i % 2 ? plank : 0xb8884c, 0, y, 0);
+    }
+    for (const x of [-W / 2, W / 2]) for (const z of [-D / 2, D / 2]) b.box(0.08, H + 0.02, 0.08, 0x6a4626, x, H / 2, z);
+    for (const s of [-1, 1]) b.bar([-W / 2, 0.05, s * (D / 2 + 0.012)], [W / 2, H - 0.05, s * (D / 2 + 0.012)], 0.07, 0x7a5430);
+    grp.add(b.build());
+    const lid = new Builder();
+    for (let i = 0; i < 4; i++) lid.box(W + 0.04, 0.05, D / 4 - 0.01, i % 2 ? plank : 0xb8884c, 0, 0, -D * 0.375 + (i * D) / 4);
+    const lm = lid.build();
+    lm.position.y = H + 0.03;
+    grp.add(lm);
+    flaps.push(lm);
+  } else {
+    const card = 0xb8875a;
+    b.box(W, H, D, card, 0, H / 2, 0);
+    b.box(0.16, H + 0.012, D + 0.012, 0xd9c79c, 0, H / 2, 0); // fita
+    for (const z of [-D / 2, D / 2]) b.box(W * 0.6, 0.02, 0.012, 0x9a6a40, 0, H * 0.35, z);
+    grp.add(b.build());
+    // abas de cima (abrem quando a caixa estoura)
+    for (const s of [-1, 1]) {
+      const fb = new Builder();
+      fb.box(W / 2, 0.025, D, 0xc4946a, s * (W / 4), 0, 0);
+      fb.box(0.08, 0.03, D, 0xd9c79c, s * 0.04, 0.003, 0);
+      const f = fb.build();
+      f.position.set(0, H + 0.01, 0);
+      f.userData.side = s;
+      grp.add(f);
+      flaps.push(f);
+    }
+  }
+  // etiquetas
+  const lab = (kind, w, h, x, y, z, ry, rx = 0) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), boxLabel(kind));
+    m.position.set(x, y, z);
+    m.rotation.set(rx, ry, 0, 'YXZ');
+    m.frustumCulled = false;
+    grp.add(m);
+  };
+  if (wood) {
+    lab('stencil', 0.62, 0.62, 0, H / 2, -D / 2 - 0.02, PI);
+    lab('stencil', 0.62, 0.62, W / 2 + 0.02, H / 2, 0, PI / 2);
+  } else {
+    lab('label', 0.42, 0.42, 0.24, H / 2, -D / 2 - 0.008, PI);
+    lab('fragile', 0.44, 0.44, -W / 2 - 0.008, H / 2, 0, -PI / 2);
+    lab('fragile', 0.44, 0.44, W / 2 + 0.008, H / 2, 0, PI / 2);
+    lab('label', 0.4, 0.4, -0.25, H + 0.04, 0.12, 0, -PI / 2);
+  }
+  grp.userData = { flaps, wood, H };
+  return grp;
 }
 
 // ---------------------------------------------------------------- mão / luva

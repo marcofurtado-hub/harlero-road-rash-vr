@@ -3,9 +3,15 @@ import * as THREE from 'three';
 import { G, rand, clamp } from './ctx.js';
 import { Builder } from './builder.js';
 import { toWorld, fromWorld, groundHeight } from './curve.js';
+import { collectHits, dealDamage } from './weapons.js';
 
 const _v = new THREE.Vector3();
 const _w = new THREE.Vector3();
+const _q = new THREE.Quaternion();
+const _m = new THREE.Matrix4();
+const _s = new THREE.Vector3();
+const _fz = new THREE.Vector3(0, 0, 1);
+const _pbHits = [];
 const GRAV = 9.8;
 
 function raySphere(o, d, c, r) {
@@ -34,6 +40,19 @@ export class Projectiles {
     const bg = new THREE.BoxGeometry(0.07, 0.07, 0.8);
     this.bulletMat = new THREE.MeshBasicMaterial({ color: 0xff9020, fog: false });
     this.bulletCore = new THREE.MeshBasicMaterial({ color: 0xfff0c0, fog: false });
+    // balas do jogador: visíveis como os ovos do Chicken Rancher, colisão por segmento varrido
+    // (testa o trecho posição anterior -> atual, então bala rápida não atravessa ninguém)
+    const MAXPB = 320;
+    const pg = new THREE.BoxGeometry(1, 1, 1);
+    pg.translate(0, 0, 0.5);
+    this.pbMesh = new THREE.InstancedMesh(pg, new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false }), MAXPB);
+    this.pbMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.pbMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAXPB * 3), 3).setUsage(THREE.DynamicDrawUsage);
+    this.pbMesh.frustumCulled = false;
+    this.pbMesh.count = 0;
+    scene.add(this.pbMesh);
+    this.pb = [];
+    this.pbMax = MAXPB;
     for (let i = 0; i < 90; i++) {
       const m = new THREE.Mesh(bg, this.bulletMat);
       const core = new THREE.Mesh(bg, this.bulletCore);
@@ -46,7 +65,76 @@ export class Projectiles {
     }
   }
 
+  // bala do jogador (vel em m/s no espaço aparente)
+  bullet(from, vel, o) {
+    if (this.pb.length >= this.pbMax) this.pb.shift();
+    this.pb.push({ p: from.clone(), prev: from.clone(), vel, dmg: o.dmg, pierce: o.pierce || 0, life: o.life || 1.2, size: o.size || 1, color: new THREE.Color(o.color || 0xffc060), proc: o.proc ?? 1, extra: o.extra || 0, hit: null });
+  }
+
+  updatePlayerBullets(dt) {
+    let anyHit = false;
+    let head = false;
+    for (let i = this.pb.length - 1; i >= 0; i--) {
+      const b = this.pb[i];
+      b.life -= dt;
+      b.prev.copy(b.p);
+      b.p.addScaledVector(b.vel, dt);
+      _v.subVectors(b.p, b.prev);
+      const len = _v.length();
+      let dead = b.life <= 0;
+      if (!dead && len > 0) {
+        _v.divideScalar(len);
+        const hits = collectHits(b.prev, _v, len, _pbHits, b.extra);
+        for (const h of hits) {
+          const key = h.id || h.obj;
+          if (b.hit && b.hit.has(key)) continue;
+          const pt = new THREE.Vector3().copy(b.prev).addScaledVector(_v, h.t);
+          const res = dealDamage(h, b.dmg, pt, _v, b.proc);
+          if (res.enemy) {
+            anyHit = true;
+            if (res.head) head = true;
+          }
+          if (res.solid === false) continue;
+          if (b.pierce > 0) {
+            b.pierce--;
+            (b.hit ||= new Set()).add(key);
+            continue;
+          }
+          b.p.copy(pt);
+          dead = true;
+          break;
+        }
+        if (!dead && groundHeight(b.p) < 0) {
+          G.fx.dust(b.p, 2);
+          dead = true;
+        }
+      }
+      if (dead) this.pb.splice(i, 1);
+    }
+    if (anyHit) {
+      G.audio.play(head ? 'headshot' : 'hit');
+      const h = G.player.gunHand;
+      if (h) G.player.pulse(h, 0.25, 18);
+    }
+    // desenho: um risco brilhante por bala, alinhado com a velocidade
+    const M = this.pbMesh;
+    M.count = this.pb.length;
+    for (let i = 0; i < this.pb.length; i++) {
+      const b = this.pb[i];
+      const sp = b.vel.length();
+      _q.setFromUnitVectors(_fz, _v.copy(b.vel).divideScalar(-sp || 1));
+      const w = 0.045 * b.size;
+      _m.compose(b.p, _q, _s.set(w, w, Math.min(1.1, sp * 0.011) * b.size));
+      M.setMatrixAt(i, _m);
+      M.setColorAt(i, b.color);
+    }
+    M.instanceMatrix.needsUpdate = true;
+    if (M.instanceColor) M.instanceColor.needsUpdate = true;
+  }
+
   clear() {
+    this.pb.length = 0;
+    this.pbMesh.count = 0;
     for (const b of this.bullets) {
       b.on = false;
       b.m.visible = false;
@@ -143,7 +231,7 @@ export class Projectiles {
     for (const t of this.things) {
       if (t.kind === 'grenade' || t.kind === 'missile' || t.dead) continue;
       const tt = raySphere(o, d, t.mesh.position, t.r + 0.1);
-      if (tt >= 0 && tt < max) out.push({ t: tt, obj: this.wrap(t), part: 'proj' });
+      if (tt >= 0 && tt < max) out.push({ t: tt, obj: this.wrap(t), part: 'proj', id: t });
     }
   }
 
@@ -187,6 +275,7 @@ export class Projectiles {
   }
 
   update(rdt) {
+    this.updatePlayerBullets(rdt);
     const P = G.player;
     // câmera lenta (power-up) segura os tiros inimigos no ar
     const dt = rdt * (G.pow.slow > 0 ? 0.35 : 1);

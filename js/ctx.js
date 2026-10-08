@@ -12,6 +12,7 @@ export const G = {
   xr: false,
   paused: false,
   speed: 18,
+  pow: { gold: 0, boom: 0, slow: 0 }, // power-ups ativos (segundos restantes)
 };
 
 export const rand = (a, b) => a + Math.random() * (b - a);

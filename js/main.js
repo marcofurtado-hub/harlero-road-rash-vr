@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { G, rand, pick, clamp, damp, chance } from './ctx.js';
+import { G, rand, pick, clamp, damp, chance, weightedPick } from './ctx.js';
 import { loadFonts } from './text.js';
 import { AudioSys } from './audio.js';
 import { FX, PX } from './fx.js';
@@ -9,13 +9,17 @@ import { Hud } from './hud.js';
 import { Hazards } from './hazards.js';
 import { Projectiles } from './projectiles.js';
 import { Enemies } from './enemies.js';
-import { Waves } from './waves.js';
+import { Waves, isBossWave } from './waves.js';
+import { Gates } from './gates.js';
+import { Crows } from './buddy.js';
+import { buildOffer } from './skills.js';
+import { POW } from './hazards.js';
 import { Cards, drawTarget, drawInfo, drawTitle, drawToggle } from './upgrades.js';
 import { TruckEvent } from './truck.js';
 import { toWorld, updateTrack, TRACK } from './curve.js';
 
 // arma que o caminhão derruba ao fim de cada onda (depois disso: turbo em todas)
-const REWARDS = ['magnum', 'tommy', 'bazooka', 'autoshotgun', 'gatling', 'flyingv'];
+const REWARDS = ['magnum', 'tommy', 'bazooka', 'autoshotgun', 'gatling', 'homing', 'flyingv', 'tesla'];
 
 const $ = (id) => document.getElementById(id);
 const _v = new THREE.Vector3();
@@ -52,7 +56,10 @@ class Game {
     G.hazards.clear();
     G.proj.clear();
     G.truck.clear();
+    G.gates.clear();
     G.waves.active = false;
+    G.pow.gold = G.pow.boom = G.pow.slow = 0;
+    G.dropless = 0;
   }
 
   toTitle() {
@@ -70,8 +77,8 @@ class Game {
   showTitleCards() {
     const vr = G.xr;
     const how = vr
-      ? ['#PILOTAR', 'Mão esquerda: segure GRIP e gire/mova o controle. Ou incline a cabeça!', '#ATIRAR', 'Mão direita: GATILHO • munição infinita', '#TROCAR ARMA', 'A / B', '#EXTRAS', '↑↓ acelera/freia • X buzina • Y recentraliza • clique no analógico esquerdo: música']
-      : ['#MIRAR / ATIRAR', 'Mouse + clique', '#PILOTAR', 'A / D  •  W acelera  S freia', '#ARMAS', '1 2 3 4 ou rodinha', '#EXTRAS', 'Espaço buzina • M liga/desliga música'];
+      ? ['#PILOTAR', 'Mão esquerda: segure GRIP e gire o controle (ou incline a cabeça)', '#ACELERAR', 'Gire o punho pra trás, como numa moto! (ou gatilho esquerdo)', '#ATIRAR', 'Mão direita: GATILHO • A / B troca arma', '#EXTRAS', 'X buzina • Y recentraliza • clique no analógico: música']
+      : ['#MIRAR / ATIRAR', 'Mouse + clique', '#PILOTAR', 'A / D  •  W acelera  S freia', '#ARMAS', '1 a 9 ou rodinha', '#EXTRAS', 'Espaço buzina • M liga/desliga música'];
     G.cards.show([
       { ghost: true, w: 4.2, h: 1.65, cw: 1024, ch: 400, y: 3.35, z: -4.8, draw: drawTitle, face: false },
       { x: -1.6, y: 1.55, z: -3.4, draw: (g, w, h) => drawInfo(g, w, h, 'COMO JOGAR', how) },
@@ -83,7 +90,7 @@ class Game {
       },
       {
         x: 1.6, y: 1.55, z: -3.4,
-        draw: (g, w, h) => drawInfo(g, w, h, 'RECORDE', [`#PONTOS`, `${this.best.score}`, '#MAIOR ONDA', `${this.best.wave}`, '', 'Dica: tiro na cabeça dá crítico. Atire nos barris vermelhos perto dos punks!']),
+        draw: (g, w, h) => drawInfo(g, w, h, 'RECORDE', [`#PONTOS`, `${this.best.score}`, '#MAIOR ONDA', `${this.best.wave}`, '', 'Quanto mais rápido, mais pontos! Atire nas caixas pra pegar power-ups.']),
       },
     ]);
   }
@@ -96,6 +103,7 @@ class Game {
     G.furyT = 0;
     this.resetWorld();
     G.cards.hide();
+    G.player.sk = {};
     const hp = G.player.stats.maxHp;
     G.player.hp = hp;
     this.nextWave();
@@ -106,8 +114,8 @@ class Game {
     G.state = 'wave';
     // cada onda é uma região nova da viagem pelos EUA
     const th = G.world.setTheme(G.wave - 1);
-    G.waves.start(G.wave, th.name);
-    G.audio.music && G.audio.music.setMode(G.wave % 5 === 0 ? 'boss' : 'combat');
+    G.waves.start(G.wave, G.wave > 8 ? `${th.name} • VOLTA ${Math.floor((G.wave - 1) / 8) + 1}` : th.name);
+    G.audio.music && G.audio.music.setMode(isBossWave(G.wave) ? 'boss' : 'combat');
     G.audio.play('wave');
   }
 
@@ -116,13 +124,25 @@ class Game {
     G.state = 'cleared';
     const bonus = 250 * G.wave;
     G.score += bonus;
-    G.hud.announce('ONDA LIMPA!', `BÔNUS +${bonus}`, '#60ff80', 2);
+    const boss = isBossWave(G.wave);
+    if (G.wave === 8) G.hud.announce('COAST TO COAST!', `Atravessou os EUA! BÔNUS +${bonus}`, '#60ff80', 3);
+    else G.hud.announce('ONDA LIMPA!', `BÔNUS +${bonus}`, '#60ff80', 2);
     G.audio.play('clear');
     G.audio.music && G.audio.music.setMode('calm');
     const reward = REWARDS[G.wave - 1] || 'turbo';
+    const wave = G.wave;
+    // caminhão (arma nova) -> portais de habilidade (2 rodadas depois de chefão) -> próxima onda
+    const next = () => this.later(1.2, () => G.state === 'cleared' && this.nextWave());
+    const gates = () => {
+      if (G.state !== 'cleared') return;
+      G.gates.start(buildOffer(wave === 1 ? 'first' : 'normal'), () => {
+        if (!boss || G.state !== 'cleared') return next();
+        G.gates.start(buildOffer('boss'), next, 'RECOMPENSA DO CHEFÃO!');
+      });
+    };
     this.later(1.6, () => {
       if (G.state !== 'cleared') return;
-      G.truck.start(reward, () => this.later(2.4, () => G.state === 'cleared' && this.nextWave()));
+      G.truck.start(reward, () => this.later(1.6, gates));
     });
   }
 
@@ -178,20 +198,25 @@ class Game {
       G.furyT -= dt;
       if (G.furyT <= 0 && G.audio.music) G.audio.music.lead = false;
     }
+    for (const k of ['gold', 'boom', 'slow']) if (G.pow[k] > 0) G.pow[k] -= dt;
   }
 }
+
+// multiplicador de pontos pela velocidade (acelerar vale a pena!)
+export const speedMult = () => 1 + Math.max(0, G.speed - 30) / 44;
 
 // ---------------------------------------------------------------- eventos globais
 G.onKill = (e, info) => {
   G.kills++;
   G.combo++;
-  G.comboT = 3.5;
-  const mult = 1 + 0.1 * (G.combo - 1);
-  let pts = e.T.score * mult * (info.headshot ? 1.5 : 1);
-  G.score += pts;
   const P = G.player;
-  // cada punk derrubado devolve um pouco de vida
-  if (!info.boss) P.heal(info.headshot ? 8 : 5);
+  G.comboT = 3.5 + 1.5 * P.lvl('combo');
+  const mult = 1 + 0.1 * (G.combo - 1);
+  const sm = speedMult();
+  let pts = e.T.score * mult * (info.headshot ? 1.5 : 1) * sm;
+  G.score += pts;
+  // cada punk derrubado devolve um pouco de vida (+ Vampiro do Asfalto)
+  if (!info.boss) P.heal((info.headshot ? 8 : 5) + 3 * P.lvl('leech'));
   else P.heal(40);
   e.center(_v);
   _v.y += 1.2;
@@ -205,19 +230,36 @@ G.onKill = (e, info) => {
   } else if (info.headshot) {
     label = 'HEADSHOT!';
     color = '#ff4040';
-    if (P.stats.bulletTime) G.slowmoT = 0.9;
   } else if (info.crash) {
     label = 'ACIDENTE!';
   } else if (info.blast) {
     label = 'PELOS ARES!';
     color = '#ff8a20';
+  } else if (info.zap) {
+    label = 'ELETROCUTADO!';
+    color = '#80e0ff';
+  } else if (info.burn) {
+    label = 'TORRADO!';
+    color = '#ff8020';
+  } else if (sm > 1.25) {
+    label += ` x${sm.toFixed(1)}`;
+    color = '#40e8ff';
   }
   G.fx.text(label, _v, color, info.boss ? 1 : 0.5);
   if (G.combo >= 3 && G.combo % 3 === 0) G.fx.text(`COMBO x${G.combo}!`, _v.clone().add(new THREE.Vector3(0, 0.7, 0)), '#ff4fd0', 0.55);
   G.audio.play('kill', _v);
   P.pulseAll(0.4, 60);
-  // drops
-  if (!info.boss && chance(0.035)) G.hazards.drop('fury', e.x, e.z);
+  // power-ups: chance do tipo x Sorte Grande, e um garantido a cada 16 abates sem nada
+  if (!info.boss) {
+    G.dropless = (G.dropless || 0) + 1;
+    const base = { punk: 0.06, kamikaze: 0.05 }[e.type] ?? 0.11;
+    if (G.dropless >= 16 || chance(base * (1 + 0.5 * P.lvl('luck')))) {
+      G.dropless = 0;
+      const low = P.hp / P.stats.maxHp;
+      const kind = weightedPick(Object.keys(POW), (k) => ({ gold: 1, boom: 1, slow: 0.8, fury: 0.7, health: low < 0.35 ? 3 : low < 0.6 ? 1.5 : 0.4 })[k]);
+      G.hazards.drop(kind, e.x, e.z);
+    }
+  } else G.hazards.drop('gold', e.x, e.z);
 };
 
 G.explode = (p, r, dmg, o = {}) => {
@@ -274,12 +316,15 @@ async function boot() {
   G.waves = new Waves();
   G.cards = new Cards(G.player.rig);
   G.truck = new TruckEvent(scene);
+  G.gates = new Gates(scene);
+  G.crows = new Crows(G.player.rig);
   G.game = new Game();
   G.furyT = 0;
   G.aggro = 1;
   G.game.toTitle();
 
   const resize = () => {
+    if (!window.innerWidth || !window.innerHeight) return; // aba escondida
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -289,6 +334,41 @@ async function boot() {
   resize();
 
   setupUI(renderer);
+
+  // um passo de simulação (também usado pelos testes: G.step roda sem renderizar)
+  const tick = (dt) => {
+    if (G.slowmoT > 0) {
+      G.slowmoT -= dt;
+      G.timeScale = damp(G.timeScale, 0.3, 12, dt);
+    } else G.timeScale = damp(G.timeScale, 1, 4, dt);
+    const gdt = dt * G.timeScale;
+    G.time += gdt;
+    G.player.update(gdt, dt);
+    G.world.update(gdt);
+    G.hazards.update(gdt);
+    G.waves.update(gdt);
+    G.enemies.update(gdt);
+    G.proj.update(gdt);
+    G.truck.update(gdt);
+    G.gates.update(gdt);
+    G.crows.update(gdt);
+    G.cards.update(dt, G.player.aimRays());
+    G.fx.update(gdt);
+    G.hud.update(dt);
+    G.game.update(gdt);
+    if (G.hitMark > 0) {
+      G.hitMark -= dt;
+      hitCross(G.hitMark > 0);
+    }
+    if (G.audio.ctx) {
+      G.audio.setEngine(G.player.speed, Math.max(0, G.player.thr));
+      G.camera.getWorldDirection(_v);
+      G.audio.setListener(G.player.headW, new THREE.Vector3(-_v.z, 0, _v.x).normalize());
+    }
+  };
+  G.step = (n = 1, dt = 1 / 60) => {
+    for (let i = 0; i < n; i++) tick(dt);
+  };
 
   const clock = new THREE.Clock();
   let fpsAcc = 0;
@@ -303,32 +383,16 @@ async function boot() {
       fpsN = 0;
       if ($('fps')) $('fps').textContent = G.fps + ' fps';
     }
-    if (!G.paused) {
-      if (G.slowmoT > 0) {
-        G.slowmoT -= dt;
-        G.timeScale = damp(G.timeScale, 0.3, 12, dt);
-      } else G.timeScale = damp(G.timeScale, 1, 4, dt);
-      const gdt = dt * G.timeScale;
-      G.time += gdt;
-      G.player.update(gdt, dt);
-      G.world.update(gdt);
-      G.hazards.update(gdt);
-      G.waves.update(gdt);
-      G.enemies.update(gdt);
-      G.proj.update(gdt);
-      G.truck.update(gdt);
-      G.cards.update(dt, G.player.aimRays());
-      G.fx.update(gdt);
-      G.hud.update(dt);
-      G.game.update(gdt);
-      if (G.audio.ctx) {
-        G.audio.setEngine(G.player.speed, Math.max(0, G.player.thr));
-        G.camera.getWorldDirection(_v);
-        G.audio.setListener(G.player.headW, new THREE.Vector3(-_v.z, 0, _v.x).normalize());
-      }
-    }
+    if (!G.paused) tick(dt);
     renderer.render(scene, camera);
   });
+}
+
+let crossHit = false;
+function hitCross(on) {
+  if (on === crossHit) return;
+  crossHit = on;
+  $('cross').classList.toggle('hit', on);
 }
 
 // ---------------------------------------------------------------- UI / entrada
@@ -462,7 +526,6 @@ function setupUI(renderer) {
     desk.keys[e.code] = true;
     if (G.xr) return;
     if (e.code.startsWith('Digit')) G.player.deskEquip(parseInt(e.code.slice(5), 10) - 1);
-    if (e.code === 'KeyR' && desk.hand.held) desk.hand.held.startReload();
     if (e.code === 'KeyQ') G.player.deskCycle(1);
     if (e.code === 'KeyM') G.audio.toggleMusic();
     if (e.code === 'Space') {

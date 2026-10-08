@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-import { G, clamp, damp } from './ctx.js';
+import { G, clamp, damp, rand } from './ctx.js';
 import * as Models from './models.js';
 import { Gun } from './weapons.js';
 import { ROAD_HALF } from './world.js';
+import { TRACK_STATE } from './curve.js';
 
 const HEAD = new THREE.Vector3(0, 1.36, 0.02);
 const UP = new THREE.Vector3(0, 1, 0);
@@ -12,6 +13,13 @@ const TWIST_FULL = 0.3; // giro do controle esquerdo (rad, ~17°)
 const SLIDE_FULL = 0.14; // mão esquerda pro lado / frente-trás (m)
 const LEAN_FULL = 0.14; // cabeça inclinada pro lado (m)
 const ROLL_FULL = 0.3; // cabeça tombada (rad, ~17°)
+// acelerador: girar o punho na manopla (como numa moto de verdade)
+const THR_DEAD = 0.07; // rad (~4°)
+const THR_FULL = 0.3; // rad além da zona morta (~17°)
+// velocidades (m/s): cruzeiro, acelerador no talo, freio
+const V_CRUISE = 30;
+const V_MAX = 52;
+const V_BRAKE = 15;
 const dz = (v, z) => (Math.abs(v) < z ? 0 : v - Math.sign(v) * z);
 const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const _v = new THREE.Vector3();
@@ -172,11 +180,10 @@ export class Player {
     this.pushV = 0;
     this.speed = 18;
     this.thr = 0;
-    this.stats = {
-      maxHp: 100, armor: 0, dmgMul: 1, rateMul: 1, reloadMul: 1, spreadMul: 1, critMul: 2, magMul: 1,
-      pierce: 0, explosive: 0, lifesteal: 0, regen: 0, bulletTime: false,
-    };
-    this.perkCount = {};
+    this.stats = { maxHp: 100, armor: 0, critMul: 2 };
+    this.sk = {}; // habilidades (id -> nível)
+    this.shieldT = 0;
+    this.barThr = 0;
     this.hp = this.stats.maxHp;
     this.hurtFlash = 0;
     this.invulnT = 0;
@@ -186,6 +193,30 @@ export class Player {
     this.guns = [];
     this.cur = -1;
     this.giveWeapon('sawedoff', true);
+  }
+
+  // ------------------------------------------------------------ habilidades (estilo Archero)
+  lvl(id) {
+    return this.sk[id] || 0;
+  }
+  addSkill(id) {
+    const n = (this.sk[id] = (this.sk[id] || 0) + 1);
+    const S = this.stats;
+    if (id === 'heart') {
+      S.maxHp += 25;
+      this.heal(25);
+    } else if (id === 'jacket') S.armor = 1 - Math.pow(0.8, n);
+    else if (id === 'heal') this.heal(9999);
+    else if (id === 'cash') G.score += 2000;
+    return n;
+  }
+  // multiplicador de dano das habilidades (Calibre Grosso + Sangue Quente)
+  dmgMul() {
+    const rage = this.lvl('rage') * 0.25 * (1 - this.hp / this.stats.maxHp);
+    return (1 + 0.25 * this.lvl('dmg')) * (1 + rage);
+  }
+  rateMul() {
+    return 1 + 0.2 * this.lvl('rate');
   }
 
   allHands() {
@@ -335,6 +366,16 @@ export class Player {
     }
     return clamp(s, -1, 1);
   }
+  // girar o punho pra trás (bico do controle pra cima) acelera; pra frente freia
+  barThrottle() {
+    const h = this.hands.find((x) => x.bar);
+    if (!h) return 0;
+    h.controller.getWorldQuaternion(_qa);
+    _qb.copy(h.q0).invert();
+    _qa.multiply(_qb);
+    const p = wrapA(2 * Math.atan2(_qa.x, _qa.w));
+    return clamp(dz(p, THR_DEAD) / THR_FULL, -1, 1);
+  }
   // inclinar a cabeça / o corpo pro lado também pilota
   headSteer(realDt) {
     // mede no pescoço (atrás dos olhos) pra que só virar a cabeça pra olhar não esterce
@@ -386,8 +427,20 @@ export class Player {
   hurt(dmg, from) {
     if (G.state === 'title' || G.state === 'dead') return;
     if (this.invulnT > 0 || dmg <= 0) return;
+    // Escudo Cromado: bloqueia um golpe e recarrega
+    const shl = this.lvl('shield');
+    if (shl && this.shieldT <= 0) {
+      this.shieldT = shl >= 2 ? 5 : 8;
+      this.invulnT = 0.4;
+      this.shieldFlash = 1;
+      G.audio.play('shield');
+      this.pulseAll(0.6, 80);
+      G.fx.text('BLOQUEADO!', _v.set(this.x, 2.1, -3.2), '#60e8ff', 0.45, 0.7);
+      return;
+    }
     const d = dmg * (1 - this.stats.armor);
     this.hp -= d;
+    this.invulnT = 0.25; // uma rajada não derruba de uma vez
     this.hurtFlash = Math.min(1, this.hurtFlash + 0.35 + d / 30);
     G.audio.play('hurt');
     this.pulseAll(0.9, 120);
@@ -422,8 +475,11 @@ export class Player {
     let steer = 0;
     let thr = 0;
     let bar = null;
+    let gas = 0;
     if (G.xr) {
       bar = this.barSteer(realDt);
+      this.barThr = damp(this.barThr, this.barThrottle(), 14, realDt);
+      gas = this.barThr;
       for (const h of this.hands) {
         const gp = h.gp;
         if (!gp) continue;
@@ -439,6 +495,8 @@ export class Player {
         const t = press(0);
         if (t && !h.btnPrev[0]) h.trigPressed = true;
         h.trig = t;
+        // gatilho esquerdo = acelerador analógico
+        if (h.side === 'left' && b[0]) gas += b[0].value || 0;
         if (h.side === 'right') {
           if (edge(4)) this.cycle(1); // A: próxima arma
           if (edge(5)) this.cycle(-1); // B: arma anterior
@@ -465,12 +523,13 @@ export class Player {
         }
       }
       if (bar !== null) steer += bar;
+      thr = clamp(thr + gas, -1, 1);
       if (G.state !== 'title') steer += this.headSteer(realDt);
     } else {
       const k = this.desk.keys;
       if (k.KeyA || k.ArrowLeft) steer -= 1;
       if (k.KeyD || k.ArrowRight) steer += 1;
-      if (k.KeyW || k.ArrowUp) thr += 1;
+      if (k.KeyW || k.ArrowUp || k.ShiftLeft) thr += 1;
       if (k.KeyS || k.ArrowDown) thr -= 1;
     }
     steer = clamp(steer, -1, 1);
@@ -487,16 +546,36 @@ export class Player {
       this.vx = 0;
     }
     const offroad = Math.abs(this.x) > 7.7;
-    let target = G.state === 'title' ? 16 : G.state === 'dead' ? 4 : 30 + thr * (thr > 0 ? 13 : 12);
-    if (offroad) target = Math.min(target, 22);
+    let target = G.state === 'title' ? 16 : G.state === 'dead' ? 4 : thr >= 0 ? V_CRUISE + thr * (V_MAX - V_CRUISE) : V_CRUISE + thr * (V_CRUISE - V_BRAKE);
+    // ladeira abaixo embala, ladeira acima segura
+    if (G.state !== 'dead') target += clamp(-TRACK_STATE.slope * 34, -6, 9);
+    if (offroad) target = Math.min(target, 24);
     if (this.crashT > 0) this.crashT -= dt;
-    this.speed = damp(this.speed, target, this.crashT > 0 ? 0.5 : 1.3, dt);
+    const k = this.crashT > 0 ? 0.5 : target > this.speed ? 1.7 : 2.4;
+    this.speed = damp(this.speed, target, k, dt);
     G.speed = this.speed;
     if (offroad && Math.random() < 0.3) this.pulseAll(0.15, 20);
+    // vento passando: quanto mais rápido, mais riscos de ar
+    const fast = (this.speed - 36) / 14;
+    if (fast > 0 && G.state !== 'title') {
+      const n = fast * 2.2 + Math.random();
+      for (let i = 0; i < n; i++) {
+        const sx = Math.random() < 0.5 ? -1 : 1;
+        G.fx.burst('wind', _v.set(this.x + sx * rand(1.2, 5), rand(0.4, 3.2), rand(-30, -8)), 1, { speed: 0, size: 0.035, sizeEnd: 0.02, life: 0.5, anchor: 1.6, alpha: 0.7 });
+      }
+    }
+    if (!G.xr) {
+      const fov = 75 + clamp(fast, 0, 1) * 9;
+      if (Math.abs(this.camera.fov - fov) > 0.05) {
+        this.camera.fov = damp(this.camera.fov, fov, 3, realDt);
+        this.camera.updateProjectionMatrix();
+      }
+    }
 
     this.rig.position.x = this.x;
     this.barAngle = damp(this.barAngle, -steer * 0.35, 14, dt);
     this.bike.bars.rotation.y = this.barAngle;
+    this.barGlove.rotation.x = -this.barThr * 0.5; // a luva gira com o acelerador
     this.bike.wheel.rotation.x -= (this.speed * dt) / 0.34;
     this.bike.group.position.y = Math.sin(G.time * 55) * 0.0012 * (this.speed / 30) + (offroad ? Math.sin(G.time * 31) * 0.006 : 0);
     if (Math.random() < 0.25) G.fx.dust(_v.set(this.x + 0.3, 0.05, 1.2), 1);
@@ -543,13 +622,22 @@ export class Player {
 
     // efeitos de vida
     if (this.invulnT > 0) this.invulnT -= dt;
+    if (this.shieldT > 0) {
+      this.shieldT -= dt;
+      if (this.shieldT <= 0 && this.lvl('shield')) G.audio.play('freeze');
+    }
+    this.shieldFlash = damp(this.shieldFlash || 0, 0, 4, realDt);
     this.hurtFlash = damp(this.hurtFlash, 0, 3, realDt);
     const low = this.hp / this.stats.maxHp < 0.3 && G.state !== 'title' && G.state !== 'dead' ? 0.35 + Math.sin(G.time * 6) * 0.15 : 0;
     const fury = G.furyT > 0 ? 0.25 : 0;
+    const slow = G.pow && G.pow.slow > 0 ? 0.3 : 0;
     const vi = Math.max(this.hurtFlash, low);
-    this.vig.material.uniforms.uI.value = Math.max(vi, fury);
-    if (vi >= fury) this.vig.material.uniforms.uC.value.setRGB(0.75, 0, 0);
-    else this.vig.material.uniforms.uC.value.setRGB(1, 0.35, 0);
+    const u = this.vig.material.uniforms;
+    u.uI.value = Math.max(vi, fury, slow, this.shieldFlash * 0.7);
+    if (this.shieldFlash > vi && this.shieldFlash > 0.1) u.uC.value.setRGB(0.3, 0.85, 1);
+    else if (vi >= Math.max(fury, slow)) u.uC.value.setRGB(0.75, 0, 0);
+    else if (slow > fury) u.uC.value.setRGB(0.2, 0.45, 1);
+    else u.uC.value.setRGB(1, 0.35, 0);
     this.vig.visible = this.vig.material.uniforms.uI.value > 0.01;
   }
 }

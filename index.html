@@ -43,6 +43,8 @@
     #cross::before { left: 10px; top: 0; width: 2px; height: 22px; }
     #cross::after { top: 10px; left: 0; height: 2px; width: 22px; }
     body.playing #cross { display: block; }
+    #cross.hit::before, #cross.hit::after { background: #ff3030; }
+    #cross.hit { transform: scale(1.35); }
     body.playing #app canvas { cursor: none; }
     .dash2d { position: fixed; left: 12px; bottom: 12px; width: min(300px, 38vw); height: auto; z-index: 4; display: none; border-radius: 18px; }
     body.playing .dash2d { display: block; }
@@ -65,9 +67,10 @@
     <div id="vrmsg">Verificando suporte a VR…</div>
     <div class="help">
       <b>Quest:</b> arma sempre na <b>mão direita</b> (gatilho atira, munição infinita, <b>A/B</b> troca) •
-      <b>mão esquerda</b>: segure <b>GRIP</b> e gire/mova o controle pra pilotar — ou só <b>incline a cabeça</b> • analógico ↑ acelera / ↓ freia • <b>X</b> buzina • segure <b>Y</b> pra recentralizar • clique no <b>analógico esquerdo</b> liga/desliga a música.<br />
-      <b>PC:</b> mouse mira/atira • <b>A/D</b> pilota • <b>W/S</b> acelera/freia • <b>1-4</b> ou rodinha troca arma • <b>Espaço</b> buzina • <b>M</b> liga/desliga a música.<br />
-      Atire nas cartas pra começar e pra escolher upgrades. Use fone — o rock é gerado ao vivo. 🤘
+      <b>mão esquerda</b>: segure <b>GRIP</b> e gire/mova o controle pra pilotar — ou só <b>incline a cabeça</b> •
+      <b>gire o punho pra trás</b> pra acelerar (pra frente freia) ou use o <b>gatilho esquerdo</b> • <b>X</b> buzina • segure <b>Y</b> pra recentralizar • clique no <b>analógico esquerdo</b> liga/desliga a música.<br />
+      <b>PC:</b> mouse mira/atira • <b>A/D</b> pilota • <b>W/S</b> acelera/freia • <b>1-9</b> ou rodinha troca arma • <b>Espaço</b> buzina • <b>M</b> liga/desliga a música.<br />
+      Cada onda: arma nova do caminhão + <b>portais de habilidade</b> na estrada (passe pelo que quiser). Atire nas caixas pra pegar power-ups. Mais rápido = mais pontos. 🤘
     </div>
   </div>
   <div id="pause" class="hidden">PAUSADO<br />clique pra voltar pra estrada</div>

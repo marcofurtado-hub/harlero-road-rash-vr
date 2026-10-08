@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { G, rand, pick, damp, chance, clamp } from './ctx.js';
 import { curveMaterial, updateTrack, TRACK, TRACK_STATE } from './curve.js';
+import { Features } from './features.js';
 import { MAT } from './builder.js';
 import * as Models from './models.js';
 import * as SC from './scenery.js';
@@ -18,14 +19,14 @@ export const HORIZON = 0xf0a070;
 // ------------------------------------------------------------------ fases (viagem pelos EUA)
 // cores do céu em sRGB; sunY/sunS = altura/tamanho do sol; back = horizonte; groundY = chão rebaixado (ponte)
 export const THEMES = [
-  { id: 'arizona', name: 'ARIZONA • ROTA 66', top: 0x1a1446, mid: 0xc0406a, hor: 0xf0a070, ground: 0xc98d5a, groundY: 0, fog: [80, 300], sunY: 45, sunS: 1.1, clouds: 0.25, back: 'mesas', light: [0xffe0c0, 0x7a4a30, 0xffd0a0], curvy: 0.6, hilly: 0.6 },
-  { id: 'canyon', name: 'GRAND CANYON', top: 0x1e4a9a, mid: 0x5a9ad8, hor: 0xf2c08a, ground: 0xb8643a, groundY: 0, fog: [90, 320], sunY: 260, sunS: 0.6, clouds: 0.8, back: 'mesas', light: [0xfff0dc, 0x8a4a2a, 0xffffff], curvy: 1.0, hilly: 0.9 },
-  { id: 'deathvalley', name: 'DEATH VALLEY', top: 0x3a7ac8, mid: 0x9ac8f0, hor: 0xf8ecd8, ground: 0xe8dcc0, groundY: 0, fog: [70, 280], sunY: 330, sunS: 0.7, clouds: 0.2, back: 'mesas', light: [0xffffff, 0xa89070, 0xfff4e0], curvy: 0.3, hilly: 0.35 },
-  { id: 'redwood', name: 'FLORESTA DE REDWOOD', top: 0x2a5a7a, mid: 0x7aaab8, hor: 0xbcd8cc, ground: 0x3a5a2a, groundY: 0, fog: [35, 190], sunY: 240, sunS: 0.5, clouds: 0.6, back: 'hills', light: [0xd8f0e0, 0x2a3a20, 0xfff8e0], curvy: 1.1, hilly: 0.8 },
-  { id: 'goldengate', name: 'GOLDEN GATE • SAN FRANCISCO', top: 0x2a6ac8, mid: 0x78b4ec, hor: 0xd8ecf8, ground: 0x2a6a9a, groundY: -30, fog: [90, 340], sunY: 300, sunS: 0.6, clouds: 1, back: 'city', light: [0xffffff, 0x2a4a6a, 0xfff4e0], curvy: 0.15, hilly: 0.1 },
-  { id: 'iowa', name: 'FAZENDAS DE IOWA', top: 0x2a6ad0, mid: 0x80b8f0, hor: 0xe0f0ff, ground: 0x7a9a3a, groundY: 0, fog: [90, 330], sunY: 320, sunS: 0.65, clouds: 1, back: 'hills', light: [0xffffff, 0x4a6a2a, 0xfff0d0], curvy: 0.4, hilly: 1.1 },
-  { id: 'chicago', name: 'CHICAGO', top: 0x3a5a8a, mid: 0x8aa0c0, hor: 0xd0d8e0, ground: 0x6a6a6e, groundY: 0, fog: [80, 300], sunY: 220, sunS: 0.55, clouds: 0.9, back: 'city', light: [0xf0f4ff, 0x4a4a50, 0xfff0e0], curvy: 0.35, hilly: 0.15 },
-  { id: 'dc', name: 'WASHINGTON D.C.', top: 0x2a5ab8, mid: 0x88b8ec, hor: 0xf0e8f0, ground: 0x5a8a3a, groundY: 0, fog: [90, 330], sunY: 280, sunS: 0.6, clouds: 0.8, back: 'city', light: [0xffffff, 0x4a6a3a, 0xfff4e8], curvy: 0.35, hilly: 0.25 },
+  { id: 'arizona', name: 'ARIZONA • ROTA 66', top: 0x1a1446, mid: 0xc0406a, hor: 0xf0a070, ground: 0xc98d5a, groundY: 0, fog: [80, 300], sunY: 45, sunS: 1.1, clouds: 0.25, back: 'mesas', light: [0xffe0c0, 0x7a4a30, 0xffd0a0], curvy: 0.6, hilly: 0.6, feat: { none: 1, tunnel: 1.2, bridge: 0.8, descent: 1.3, climb: 1 } },
+  { id: 'canyon', name: 'GRAND CANYON', top: 0x1e4a9a, mid: 0x5a9ad8, hor: 0xf2c08a, ground: 0xb8643a, groundY: 0, fog: [90, 320], sunY: 260, sunS: 0.6, clouds: 0.8, back: 'mesas', light: [0xfff0dc, 0x8a4a2a, 0xffffff], curvy: 1.0, hilly: 0.9, feat: { none: 0.6, tunnel: 1, bridge: 1.7, descent: 1.2, climb: 0.8 } },
+  { id: 'deathvalley', name: 'DEATH VALLEY', top: 0x3a7ac8, mid: 0x9ac8f0, hor: 0xf8ecd8, ground: 0xe8dcc0, groundY: 0, fog: [70, 280], sunY: 330, sunS: 0.7, clouds: 0.2, back: 'mesas', light: [0xffffff, 0xa89070, 0xfff4e0], curvy: 0.3, hilly: 0.35, feat: { none: 1, tunnel: 0.5, bridge: 0.5, descent: 1.6, climb: 1.2 } },
+  { id: 'redwood', name: 'FLORESTA DE REDWOOD', top: 0x2a5a7a, mid: 0x7aaab8, hor: 0xbcd8cc, ground: 0x3a5a2a, groundY: 0, fog: [35, 190], sunY: 240, sunS: 0.5, clouds: 0.6, back: 'hills', light: [0xd8f0e0, 0x2a3a20, 0xfff8e0], curvy: 1.1, hilly: 0.8, feat: { none: 0.8, tunnel: 1.4, bridge: 1, descent: 1, climb: 1 } },
+  { id: 'goldengate', name: 'GOLDEN GATE • SAN FRANCISCO', top: 0x2a6ac8, mid: 0x78b4ec, hor: 0xd8ecf8, ground: 0x2a6a9a, groundY: -30, fog: [90, 340], sunY: 300, sunS: 0.6, clouds: 1, back: 'city', light: [0xffffff, 0x2a4a6a, 0xfff4e0], curvy: 0.15, hilly: 0.1, feat: { none: 1 } },
+  { id: 'iowa', name: 'FAZENDAS DE IOWA', top: 0x2a6ad0, mid: 0x80b8f0, hor: 0xe0f0ff, ground: 0x7a9a3a, groundY: 0, fog: [90, 330], sunY: 320, sunS: 0.65, clouds: 1, back: 'hills', light: [0xffffff, 0x4a6a2a, 0xfff0d0], curvy: 0.4, hilly: 1.1, feat: { none: 1, tunnel: 0.3, bridge: 0.9, descent: 1, climb: 1.3 } },
+  { id: 'chicago', name: 'CHICAGO', top: 0x3a5a8a, mid: 0x8aa0c0, hor: 0xd0d8e0, ground: 0x6a6a6e, groundY: 0, fog: [80, 300], sunY: 220, sunS: 0.55, clouds: 0.9, back: 'city', light: [0xf0f4ff, 0x4a4a50, 0xfff0e0], curvy: 0.35, hilly: 0.15, feat: { none: 1, tunnel: 1.5, descent: 0.4, climb: 0.4 } },
+  { id: 'dc', name: 'WASHINGTON D.C.', top: 0x2a5ab8, mid: 0x88b8ec, hor: 0xf0e8f0, ground: 0x5a8a3a, groundY: 0, fog: [90, 330], sunY: 280, sunS: 0.6, clouds: 0.8, back: 'city', light: [0xffffff, 0x4a6a3a, 0xfff4e8], curvy: 0.35, hilly: 0.25, feat: { none: 1, tunnel: 1, descent: 0.5, climb: 0.5 } },
 ];
 
 function drawRoad(g, w, h) {
@@ -188,10 +189,11 @@ class ThemePool {
     // pool sem nenhum item da fase atual: não desenha (economiza GPU no Quest)
     this.mesh.visible = on > 0;
     if (!on) return;
+    const dist = this.w.dist;
     for (const it of this.items) {
       _e.set(it.rx, it.ry, 0, 'YXZ');
       _q.setFromEuler(_e);
-      const k = it.on ? it.s : 0;
+      const k = it.on && !TRACK.blocked(dist - it.z, Math.abs(it.x)) ? it.s : 0;
       m.compose(_p.set(it.x, it.y, it.z), _q, _sc.set(k * it.sx, k * it.sy, k));
       this.mesh.setMatrixAt(it.i, m);
     }
@@ -226,11 +228,14 @@ export class World {
     TRACK.reset();
     TRACK.curvy = THEMES[0].curvy;
     TRACK.hilly = THEMES[0].hilly;
+    TRACK.weights = THEMES[0].feat;
     updateTrack(0);
     this.makeSky();
     this.makeGround();
     this.makeRoad();
     this.makeScenery();
+    this.features = new Features(scene);
+    this.features.setTheme(this.themeId, true);
     this.applyParams();
   }
 
@@ -252,6 +257,9 @@ export class World {
     this.target = this.paramsOf(t);
     TRACK.curvy = t.curvy;
     TRACK.hilly = t.hilly;
+    TRACK.weights = t.feat;
+    TRACK.replan(this.dist + 420);
+    if (this.features) this.features.setTheme(t.id, false);
     return t;
   }
   // troca na hora (reinício do jogo / testes): recoloca todo o cenário
@@ -259,6 +267,7 @@ export class World {
     const t = this.setTheme(i);
     this.cur = this.paramsOf(t);
     this.target = null;
+    this.features.setTheme(t.id, true);
     for (const p of this.pools) for (const it of p.items) p.place(it, true);
     for (const b of this.billboards) this.respawnBillboard(b, true, this.billboards.indexOf(b));
     this.diner.visible = ['arizona', 'iowa', 'deathvalley'].includes(this.themeId);
@@ -384,7 +393,7 @@ export class World {
     const geo = new THREE.PlaneGeometry(330, 380, 22, 152);
     geo.rotateX(-Math.PI / 2);
     geo.translate(0, -0.03, 45 - 190);
-    this.groundMat = curveMaterial(new THREE.MeshLambertMaterial({ map: tex }));
+    this.groundMat = curveMaterial(new THREE.MeshLambertMaterial({ map: tex }), { ground: true });
     this.ground = new THREE.Mesh(geo, this.groundMat);
     this.ground.frustumCulled = false;
     this.groundTex = tex;
@@ -534,6 +543,7 @@ export class World {
     for (const b of this.billboards) {
       b.position.z += dz;
       if (b.position.z > 40) this.respawnBillboard(b, false);
+      b.children.forEach((c) => (c.visible = !TRACK.blocked(this.dist - b.position.z, Math.abs(b.position.x))));
     }
     this.diner.position.z += dz;
     if (this.diner.position.z > 60) {
@@ -541,6 +551,7 @@ export class World {
       this.diner.rotation.y = this.diner.position.x < 0 ? Math.PI / 2 : -Math.PI / 2;
       this.diner.visible = ['arizona', 'iowa', 'deathvalley'].includes(this.themeId);
     }
+    if (this.diner.visible && TRACK.blocked(this.dist - this.diner.position.z, 32)) this.diner.position.z -= 400;
     for (const t of this.tumbles) {
       t.position.z += dz;
       t.position.x += t.userData.vx * dt;
@@ -556,6 +567,11 @@ export class World {
     if (G.lights) {
       const h = TRACK_STATE.heading;
       G.lights.dir.position.set(-0.4 * Math.cos(h) + 0.7 * Math.sin(h), 1, 0.7 * Math.cos(h) + 0.4 * Math.sin(h));
+      // dentro do túnel o mundo escurece (só as luminárias de sódio iluminam)
+      const tk = TRACK_STATE.tunnel;
+      G.lights.hemi.intensity = 2.0 * (1 - 0.64 * tk);
+      G.lights.dir.intensity = 2.0 * (1 - 0.9 * tk);
     }
+    this.features.update(dt, this.dist);
   }
 }

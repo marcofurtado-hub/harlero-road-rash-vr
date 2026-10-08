@@ -384,6 +384,41 @@ export function runawayTruck() {
   return { body, front: axle(-2.6), rear: axle(2.2) };
 }
 
+// corvo de jaqueta e bandana que voa do seu lado e atira sozinho (companheiro)
+export function crowModel() {
+  const body = new Builder();
+  body.sph(0.075, 0x15151c, 0, 0, 0, { sx: 0.9, sy: 0.85, sz: 1.35 }, 8, 6);
+  body.sph(0.05, 0x1a1a22, 0, 0.06, -0.08, null, 8, 6);
+  body.cone(0.02, 0.07, 5, 0x3a3a3a, 0, 0.055, -0.145, -PI / 2, 0, 0);
+  body.box(0.07, 0.02, 0.09, 0x111116, 0, -0.01, 0.12, 0.3, 0, 0);
+  body.box(0.11, 0.025, 0.06, 0xc01020, 0, 0.09, -0.07); // bandana
+  body.box(0.03, 0.04, 0.03, 0xc01020, 0, 0.08, -0.02, 0.4, 0, 0);
+  for (const s of [-1, 1]) body.sph(0.012, 0xff3020, s * 0.03, 0.075, -0.115, { glow: true }, 5, 4);
+  // mini metralhadora presa na barriga
+  body.box(0.02, 0.02, 0.1, 0x333333, 0, -0.07, -0.05);
+  const grp = body.build(true);
+  const wings = [-1, 1].map((s) => {
+    const wb = new Builder();
+    wb.box(0.16, 0.012, 0.09, 0x101016, s * 0.08, 0, 0.0, 0, 0, 0);
+    wb.box(0.1, 0.01, 0.06, 0x202028, s * 0.2, 0, 0.02, 0, 0, 0);
+    const w = wb.build(true);
+    w.position.set(s * 0.04, 0.02, 0);
+    grp.add(w);
+    return w;
+  });
+  return { grp, wings };
+}
+
+// caixa de power-up: atire nela (ou passe por cima) pra pegar
+export function powCrate(color) {
+  const b = new Builder();
+  b.box(0.7, 0.7, 0.7, color, 0, 0, 0);
+  for (const y of [-0.33, 0.33]) b.box(0.74, 0.08, 0.74, 0x222222, 0, y, 0);
+  for (const x of [-0.33, 0.33]) b.box(0.08, 0.74, 0.74, 0x222222, x, 0, 0);
+  b.box(0.3, 0.3, 0.76, 0xffffff, 0, 0, 0, 0, 0, 0, { glow: true });
+  return b.build();
+}
+
 export function weaponChest() {
   const b = new Builder();
   b.box(0.9, 0.5, 0.55, 0x7a4a22, 0, 0.25, 0);
@@ -518,6 +553,36 @@ export function gunModel(id) {
       spinner.position.set(0, 0.04, -0.25);
       muzzle.set(0, 0.04, -0.43);
       ammo.set(0, 0.11, 0.0);
+      break;
+    }
+    case 'homing': {
+      // lançador de 4 tubos com mira
+      b.box(0.13, 0.12, 0.34, 0x3a4030, 0, 0.08, -0.12);
+      for (const [x, y] of [[-0.032, 0.05], [0.032, 0.05], [-0.032, 0.11], [0.032, 0.11]]) {
+        b.cyl(0.026, 0.026, 0.36, 8, 0x22261c, x, y, -0.13, PI / 2, 0, 0);
+        b.cyl(0.018, 0.018, 0.02, 8, 0xd02020, x, y, -0.31, PI / 2, 0, 0, { glow: true });
+      }
+      b.box(0.04, 0.06, 0.08, 0x111111, 0, 0.17, -0.05);
+      b.box(0.03, 0.03, 0.03, 0xff3030, 0, 0.21, -0.05, 0, 0, 0, { glow: true });
+      b.box(0.04, 0.11, 0.05, 0x111111, 0, -0.045, 0.03, 0.3, 0, 0);
+      b.box(0.11, 0.02, 0.2, 0xe0c020, 0, 0.146, -0.12);
+      muzzle.set(0, 0.08, -0.33);
+      break;
+    }
+    case 'tesla': {
+      // bobina tesla: espiras de cobre girando + esfera de plasma
+      b.box(0.05, 0.06, 0.2, 0x2a2a30, 0, 0.03, -0.02);
+      b.box(0.04, 0.11, 0.05, 0x111111, 0, -0.045, 0.04, 0.3, 0, 0);
+      b.cyl(0.012, 0.012, 0.3, 6, C.chrome, 0, 0.05, -0.2, PI / 2, 0, 0);
+      b.box(0.08, 0.05, 0.05, 0x40e0ff, 0, 0.075, 0.05, 0, 0, 0, { glow: true });
+      const sb = new Builder();
+      for (let i = 0; i < 7; i++) sb.cyl(0.042 - i * 0.003, 0.042 - i * 0.003, 0.012, 10, i % 2 ? 0xc87533 : 0xe8a050, 0, 0, 0.09 - i * 0.032, PI / 2, 0, 0);
+      sb.box(0.012, 0.09, 0.012, 0x40e0ff, 0, 0, 0, 0, 0, 0, { glow: true });
+      spinner = sb.build();
+      spinner.position.set(0, 0.05, -0.22);
+      b.sph(0.045, 0x9af4ff, 0, 0.05, -0.37, { glow: true }, 8, 6);
+      b.sph(0.03, 0xffffff, 0, 0.05, -0.37, { glow: true }, 6, 4);
+      muzzle.set(0, 0.05, -0.38);
       break;
     }
     case 'flyingv':

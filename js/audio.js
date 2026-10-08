@@ -55,6 +55,9 @@ const GUN_SFX = {
   enemy: { vol: 0.45, ft: 'lowpass', ff: 2200, nd: 0.14, f0: 150, f1: 50, td: 0.1 },
   enemyShotgun: { vol: 0.6, ft: 'lowpass', ff: 1800, nd: 0.3, f0: 110, f1: 35, td: 0.2 },
   sniper: { vol: 0.9, ft: 'highpass', ff: 1200, nd: 0.35, f0: 140, f1: 40, td: 0.2 },
+  homing: { vol: 0.75, ft: 'bandpass', ff: 1400, nd: 0.35, f0: 420, f1: 140, td: 0.25 },
+  tesla: { vol: 0.7, ft: 'highpass', ff: 2600, nd: 0.22, f0: 900, f1: 120, td: 0.18 },
+  crow: { vol: 0.35, ft: 'bandpass', ff: 2600, nd: 0.06, f0: 500, f1: 200, td: 0.05 },
 };
 
 class Music {
@@ -222,6 +225,20 @@ export class AudioSys {
     this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = this.noiseBuf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+
+    // eco do túnel: um delay com realimentação que só abre lá dentro
+    this.echoIn = ctx.createGain();
+    this.echoIn.gain.value = 0;
+    const dl = ctx.createDelay(1);
+    dl.delayTime.value = 0.11;
+    const fb = ctx.createGain();
+    fb.gain.value = 0.42;
+    const elp = ctx.createBiquadFilter();
+    elp.type = 'lowpass';
+    elp.frequency.value = 2200;
+    this.sfxBus.connect(this.echoIn);
+    this.echoIn.connect(dl).connect(elp).connect(fb).connect(dl);
+    elp.connect(this.master);
 
     this.makeGuitar();
     this.makeBass();
@@ -515,8 +532,16 @@ export class AudioSys {
     this.eo1.frequency.setTargetAtTime(f, t, 0.1);
     this.eo2.frequency.setTargetAtTime(f / 2, t, 0.1);
     this.eLfo.frequency.setTargetAtTime(f / 4.2, t, 0.1);
-    this.engOut.gain.setTargetAtTime(0.16 + throttle * 0.05, t, 0.2);
-    this.windG.gain.setTargetAtTime(clamp(speed / 45, 0, 1) * 0.07, t, 0.3);
+    this.engOut.gain.setTargetAtTime((0.16 + throttle * 0.05) * (1 + (this.envTunnel || 0) * 0.5), t, 0.2);
+    this.windG.gain.setTargetAtTime(clamp(speed / 45, 0, 1.3) * 0.07 * (1 - (this.envTunnel || 0) * 0.7) + (this.envBridge || 0) * 0.08, t, 0.3);
+  }
+  // ambiente: túnel (eco + motor mais alto) e ponte (vento forte)
+  setEnv(tunnel, bridge) {
+    if (!this.ctx) return;
+    const t = this.t;
+    this.echoIn.gain.setTargetAtTime(tunnel * 0.55, t, 0.15);
+    this.envTunnel = tunnel;
+    this.envBridge = bridge;
   }
   setEnemyEngine(dist, pan, relSpeed) {
     if (!this.ctx) return;
@@ -737,6 +762,46 @@ export class AudioSys {
         this.crash(t + 0.48);
         break;
       }
+      case 'gust':
+        this.noiseHit(1.1, 380, 'bandpass', 0.7);
+        this.noiseHit(0.8, 1200, 'bandpass', 0.25);
+        break;
+      case 'zap':
+        this.noiseHit(0.12, 4200, 'highpass', 0.35, pos);
+        this.blip(1400, 0.1, 0.12, 'square', pos, 300);
+        break;
+      case 'freeze':
+        this.blip(2400, 0.18, 0.08, 'triangle', pos, 3600);
+        break;
+      case 'burn':
+        this.noiseHit(0.25, 900, 'bandpass', 0.18, pos);
+        break;
+      case 'shield':
+        this.blip(1800, 0.35, 0.25, 'triangle', null, 900);
+        this.blip(2700, 0.3, 0.12, 'sine');
+        break;
+      case 'caw':
+        this.blip(780, 0.12, 0.16, 'sawtooth', pos, 520);
+        setTimeout(() => this.blip(700, 0.16, 0.14, 'sawtooth', pos, 450), 140);
+        break;
+      case 'powerup': {
+        const t = this.t;
+        [0, 4, 7, 12].forEach((s, i) => this.chord(t + i * 0.07, s, i === 3 ? 0.6 : 0.08, false));
+        this.blip(880, 0.3, 0.2, 'triangle', null, 1760);
+        break;
+      }
+      case 'gate': {
+        const t = this.t;
+        this.chord(t, 5, 0.12, false);
+        this.chord(t + 0.1, 7, 0.12, false);
+        this.chord(t + 0.2, 12, 0.9, false);
+        this.crash(t + 0.2);
+        break;
+      }
+      case 'crit':
+        this.blip(2200, 0.08, 0.14, 'square');
+        this.blip(3300, 0.1, 0.08, 'triangle');
+        break;
       case 'gameover': {
         const t = this.t;
         [12, 7, 5, 3, 0].forEach((s, i) => this.chord(t + i * 0.28, s, i === 4 ? 2 : 0.25, false));

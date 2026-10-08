@@ -117,9 +117,31 @@ export class Projectiles {
     this.things.push({ kind: 'grenade', mesh, vel: dir.clone().multiplyScalar(S.pspeed), age: 0, r: S.straight ? 0.35 : 0.2, dmg: S.dmg, splash: S.splash, straight: S.straight });
   }
 
+  // rajada de mísseis teleguiados do jogador: saem abertos e depois perseguem os punks
+  missiles(from, dir, S, n) {
+    const side = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
+    const taken = new Set();
+    for (let i = 0; i < n; i++) {
+      const mesh = simpleMesh((b) => {
+        b.cyl(0.035, 0.035, 0.32, 6, 0xd8d8d0, 0, 0, 0, Math.PI / 2, 0, 0);
+        b.cone(0.035, 0.1, 6, 0xd02020, 0, 0, -0.21, -Math.PI / 2, 0, 0);
+        for (let k = 0; k < 4; k++) b.box(0.006, 0.08, 0.07, 0x333333, 0, 0, 0.13, 0, 0, (k * Math.PI) / 2);
+        b.sph(0.045, 0xffc040, 0, 0, 0.18, { glow: true }, 5, 4);
+      });
+      mesh.position.copy(from);
+      this.scene.add(mesh);
+      const a = n > 1 ? (i / (n - 1) - 0.5) * 2 : 0;
+      const vel = dir.clone().multiplyScalar(13).addScaledVector(side, a * 5).add(new THREE.Vector3(0, 2 + Math.random() * 1.5, 0));
+      let target = G.enemies.acquire(from, dir, taken);
+      if (target) taken.add(target);
+      else target = G.enemies.acquire(from, dir);
+      this.things.push({ kind: 'missile', mesh, vel, age: 0, r: 0.35, dmg: S.dmg, splash: S.splash, target });
+    }
+  }
+
   rayHits(o, d, max, out) {
     for (const t of this.things) {
-      if (t.kind === 'grenade' || t.dead) continue;
+      if (t.kind === 'grenade' || t.kind === 'missile' || t.dead) continue;
       const tt = raySphere(o, d, t.mesh.position, t.r + 0.1);
       if (tt >= 0 && tt < max) out.push({ t: tt, obj: this.wrap(t), part: 'proj' });
     }
@@ -152,21 +174,22 @@ export class Projectiles {
     } else if (t.kind === 'rocket') {
       G.explode(p, 3.5, shot ? 60 : 0, { hurtPlayer: !shot, playerDmg: t.dmg });
       if (shot) G.fx.text('BOOM!', _v.copy(p).add(_w.set(0, 0.6, 0)), '#ffd21e', 0.45);
-    } else if (t.kind === 'grenade') {
+    } else if (t.kind === 'grenade' || t.kind === 'missile') {
       G.explode(p, t.splash, t.dmg, { player: true });
     }
   }
 
   blast(p, r) {
     for (const t of this.things) {
-      if (t.dead || t.kind === 'grenade') continue;
+      if (t.dead || t.kind === 'grenade' || t.kind === 'missile') continue;
       if (t.mesh.position.distanceTo(p) < r * 0.8) this.burst(t, true);
     }
   }
 
-  update(dt) {
+  update(rdt) {
     const P = G.player;
-    const speed = G.speed;
+    // câmera lenta (power-up) segura os tiros inimigos no ar
+    const dt = rdt * (G.pow.slow > 0 ? 0.35 : 1);
     for (const b of this.bullets) {
       if (!b.on) continue;
       b.age += dt;
@@ -215,9 +238,24 @@ export class Projectiles {
           if (Math.random() < 0.7) G.fx.fire(p, 1, 0.2, 0.2);
           if (P.hitSegment(_w, p, 0.35)) this.burst(t, false);
           else if (groundHeight(p) <= 0.1 || t.age > 7 || p.z > 10) this.burst(t, false);
+        } else if (t.kind === 'missile') {
+          t.age += rdt - dt; // mísseis do jogador não sofrem a câmera lenta
+          const e = t.target;
+          if (!e || e.dying || e.remove) t.target = t.age > 0.1 ? G.enemies.acquire(p, _v.copy(t.vel).normalize()) : e;
+          const sp = Math.min(36, 13 + t.age * 45);
+          if (t.target && t.age > 0.14) {
+            const want = _v.copy(t.target.sw[1] || t.target.sw[0]).sub(p).normalize().multiplyScalar(sp);
+            t.vel.lerp(want, clamp(rdt * (4 + t.age * 10), 0, 1));
+          } else t.vel.y -= 4 * rdt;
+          p.addScaledVector(t.vel, rdt);
+          t.mesh.lookAt(_v.copy(p).sub(t.vel));
+          G.fx.smoke(p, 1, 0.16);
+          if (Math.random() < 0.7) G.fx.fire(p, 1, 0.14, 0.2);
+          if (G.enemies.proximity(p, t.r) || groundHeight(p) <= 0.05 || t.age > 4) this.burst(t, false);
         } else if (t.kind === 'grenade') {
-          if (!t.straight) t.vel.y -= GRAV * 0.55 * dt;
-          p.addScaledVector(t.vel, dt);
+          t.age += rdt - dt;
+          if (!t.straight) t.vel.y -= GRAV * 0.55 * rdt;
+          p.addScaledVector(t.vel, rdt);
           if (t.straight) {
             G.fx.smoke(_v.copy(p), 1, 0.25);
             G.fx.fire(p, 1, 0.18, 0.3);

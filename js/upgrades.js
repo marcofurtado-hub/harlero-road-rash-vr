@@ -1,123 +1,14 @@
-// Cartas 3D (menu, upgrades, game over) que você escolhe atirando nelas
+// Cartas 3D (menu, game over) que você escolhe atirando nelas
 import * as THREE from 'three';
-import { G, pick, shuffle, weightedPick, clamp, damp } from './ctx.js';
-import { WEAPONS, WEAPON_ORDER } from './weapons.js';
+import { G, damp } from './ctx.js';
 import { canvasTex, FW, FB, fitFont, wrapLines, strokeText, roundRect, setFont } from './text.js';
 
-export const PERKS = [
-  { id: 'dmg', icon: '💥', name: 'Pólvora Turbinada', desc: '+20% de dano em todas as armas', max: 5, rarity: 'common', apply: (s) => (s.dmgMul *= 1.2) },
-  { id: 'rate', icon: '⚡', name: 'Dedo Nervoso', desc: '+15% de cadência de tiro', max: 5, rarity: 'common', apply: (s) => (s.rateMul *= 1.15) },
-  { id: 'acc', icon: '🎯', name: 'Olho de Águia', desc: '-25% de dispersão. Mais precisão!', max: 3, rarity: 'common', apply: (s) => (s.spreadMul *= 0.75) },
-  { id: 'crit', icon: '💀', name: 'Sangue Frio', desc: 'Tiros na cabeça causam +75% de dano', max: 3, rarity: 'rare', apply: (s) => (s.critMul += 0.75) },
-  { id: 'pierce', icon: '🗡️', name: 'Bala Perfurante', desc: 'Tiros atravessam +1 inimigo', max: 2, rarity: 'rare', apply: (s) => (s.pierce += 1) },
-  { id: 'boom', icon: '🧨', name: 'Munição Explosiva', desc: 'Acertos podem causar mini-explosões', max: 3, rarity: 'epic', apply: (s) => (s.explosive += 1) },
-  { id: 'vamp', icon: '🦇', name: 'Vampiro do Asfalto', desc: 'Cura 4 de vida a cada abate', max: 3, rarity: 'rare', apply: (s) => (s.lifesteal += 4) },
-  { id: 'armor', icon: '🧥', name: 'Jaqueta Blindada', desc: '-15% de dano recebido', max: 3, rarity: 'common', apply: (s) => (s.armor = 1 - (1 - s.armor) * 0.85) },
-  { id: 'hp', icon: '❤️', name: 'Coração V8', desc: '+30 de vida máxima (e cura 30)', max: 4, rarity: 'common', apply: (s, p) => { s.maxHp += 30; p.heal(30); } },
-  { id: 'regen', icon: '🛢️', name: 'Graxa Milagrosa', desc: 'Regenera 1.5 de vida por segundo', max: 3, rarity: 'rare', apply: (s) => (s.regen += 1.5) },
-  { id: 'bt', icon: '⏳', name: 'Tempo de Bala', desc: 'Headshot que mata ativa câmera lenta', max: 1, rarity: 'epic', apply: (s) => (s.bulletTime = true) },
-  { id: 'repair', icon: '🔧', name: 'Pit Stop', desc: 'Recupera TODA a vida', max: 99, rarity: 'common', cond: (p) => p.hp < p.stats.maxHp * 0.7, apply: (s, p) => p.heal(9999) },
-];
-
-const RARITY = {
+export const RARITY = {
   common: ['#a8aeb6', 'COMUM'],
   rare: ['#3a8bff', 'RARO'],
   epic: ['#c25cff', 'ÉPICO'],
   legend: ['#ff9a1e', 'LENDÁRIO'],
 };
-const tierRarity = (t) => (t <= 1 ? 'common' : t === 2 ? 'rare' : t <= 4 ? 'epic' : 'legend');
-const SLOT_NAMES = ['coldre da coxa', 'coldre do quadril', 'coldre do tanque', 'coldre da perna'];
-
-function statBars(d, level) {
-  const L = level - 1;
-  const dmg = d.beam ? d.dmg / 8 : d.dmg * (d.pellets || 1) * (1 + 0.25 * L) + (d.splash ? 60 : 0);
-  const rate = d.beam ? 30 : d.rate * (1 + 0.12 * L);
-  return [
-    ['DANO', clamp(Math.sqrt(dmg / 200), 0.05, 1)],
-    ['CADÊNCIA', clamp(Math.sqrt(rate / 26), 0.05, 1)],
-    ['PRECISÃO', clamp(1 - (d.spread * Math.pow(0.85, L)) / 0.1, 0.05, 1)],
-    ['ALCANCE', clamp((d.range || 120) / 220, 0.05, 1)],
-  ];
-}
-
-function weaponOption(id) {
-  const P = G.player;
-  const d = WEAPONS[id];
-  const { slot, replaces } = P.slotFor(id);
-  return {
-    banner: 'NOVA ARMA',
-    icon: d.icon,
-    title: d.name,
-    sub: '★'.repeat(d.tier),
-    desc: d.desc,
-    rarity: tierRarity(d.tier),
-    stats: statBars(d, 1),
-    foot: replaces ? `substitui: ${replaces.def.name}` : `vai pro ${SLOT_NAMES[slot]}`,
-    apply: () => P.giveWeapon(id),
-  };
-}
-
-function levelOption(g) {
-  return {
-    banner: 'TURBINAR ARMA',
-    icon: '⭐',
-    title: g.def.name,
-    sub: `NÍVEL ${g.level} ➜ ${g.level + 1}`,
-    desc: '+25% dano, +12% cadência e mais precisão',
-    rarity: g.level >= 3 ? 'epic' : 'rare',
-    stats: statBars(g.def, g.level + 1),
-    foot: 'munição infinita',
-    apply: () => {
-      g.level++;
-      g.refill();
-    },
-  };
-}
-
-function perkOption(p) {
-  const P = G.player;
-  const n = P.perkCount[p.id] || 0;
-  return {
-    banner: 'PERK',
-    icon: p.icon,
-    title: p.name,
-    sub: p.max > 1 && p.max < 99 ? `NÍVEL ${n + 1}/${p.max}` : '',
-    desc: p.desc,
-    rarity: p.rarity,
-    apply: () => {
-      p.apply(P.stats, P);
-      P.perkCount[p.id] = n + 1;
-    },
-  };
-}
-
-export function makeOptions() {
-  const P = G.player;
-  const opts = [];
-  const owned = P.ownedIds();
-  // as 4 primeiras armas vêm de graça (PROGRESSION); as pesadas aparecem nas cartas a partir da onda 4
-  const maxTier = G.wave >= 6 ? 6 : G.wave >= 4 ? 5 : 0;
-  let unlocks = WEAPON_ORDER.filter((id) => !owned.includes(id) && WEAPONS[id].tier >= 5 && WEAPONS[id].tier <= maxTier);
-  if (unlocks.length && Math.random() < 0.92) {
-    const id = weightedPick(unlocks, (i) => Math.pow(2.2, WEAPONS[i].tier));
-    opts.push(weaponOption(id));
-    unlocks = unlocks.filter((i) => i !== id);
-  }
-  const guns = P.allGuns().filter((g) => g.level < 5);
-  if (guns.length) opts.push(levelOption(pick(guns)));
-  const perks = shuffle(PERKS.filter((p) => (P.perkCount[p.id] || 0) < p.max && (!p.cond || p.cond(P))));
-  if (P.hp < P.stats.maxHp * 0.45) {
-    const rep = perks.find((p) => p.id === 'repair');
-    if (rep) opts.push(perkOption(rep));
-  }
-  while (opts.length < 3 && perks.length) {
-    const p = perks.pop();
-    if (!opts.some((o) => o.title === p.name)) opts.push(perkOption(p));
-  }
-  while (opts.length < 3 && unlocks.length) opts.push(weaponOption(unlocks.pop()));
-  return shuffle(opts.slice(0, 3));
-}
-
 // ------------------------------------------------------------------ desenho das cartas
 function cardBase(g, w, h, color) {
   const gr = g.createLinearGradient(0, 0, 0, h);

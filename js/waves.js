@@ -8,6 +8,9 @@ const GANGS = [
   'GANGUE DA GRAXA', 'LOBOS DA 66',
 ];
 
+// chefões: Golden Gate (onda 5) e o grande final em Washington (onda 8); depois, a cada 4 ondas
+export const isBossWave = (n) => n === 5 || n === 8 || (n > 8 && n % 4 === 0);
+
 export class Waves {
   constructor() {
     this.active = false;
@@ -20,7 +23,7 @@ export class Waves {
     this.queue = [];
     this.spawnT = 2.5;
     G.aggro = 1 + 0.05 * (n - 1);
-    const boss = n % 5 === 0;
+    const boss = isBossWave(n);
     const types = Object.keys(TYPES).filter((t) => TYPES[t].minWave <= n);
     let budget = boss ? 3 + n * 0.8 : 4 + n * 3.2;
     // tipo novo aparece em destaque na sua primeira onda
@@ -39,7 +42,7 @@ export class Waves {
     this.maxC = Math.min(3 + Math.floor(n * 0.6), 10);
     this.interval = Math.max(0.7, 2.6 - n * 0.14);
     if (boss) {
-      const name = BOSS_NAMES[Math.floor(n / 5 - 1) % BOSS_NAMES.length];
+      const name = BOSS_NAMES[G.enemies.bossCount % BOSS_NAMES.length];
       G.hud.announce(`ONDA ${n}: CHEFÃO!`, `${name} • ${place}`, '#ff3030', 3.5);
     } else {
       const fr = fresh.length ? `NOVO: ${fresh.map((f) => TYPES[f].name.toUpperCase()).join(' + ')}` : pick(GANGS);

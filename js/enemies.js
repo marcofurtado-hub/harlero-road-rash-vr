@@ -30,26 +30,26 @@ export const TYPES = {
     throwEvery: [2.8, 4.2],
   },
   kamikaze: {
-    name: 'Dinamite', hp: 40, score: 200, cost: 1.5, minWave: 3, w: 2.2, lat: 5.5, ai: 'kamikaze',
+    name: 'Dinamite', hp: 40, score: 200, cost: 1.5, minWave: 4, w: 2.2, lat: 5.5, ai: 'kamikaze',
     look: { bike: 'dirt', hair: ['helmet'], weapon: 'dynamite' },
   },
   sidecar: {
-    name: 'Dupla Sidecar', hp: 190, score: 320, cost: 3, minWave: 4, w: 2.5, lat: 3.5, ai: 'shooter', range: [-20, -7],
+    name: 'Dupla Sidecar', hp: 190, score: 320, cost: 3, minWave: 5, w: 2.5, lat: 3.5, ai: 'shooter', range: [-20, -7],
     look: { bike: 'sidecar', hair: ['mohawk', 'bandana', 'cowboy'], weapon: 'smg', gunner: true },
     fire: { every: [2.3, 3.3], burst: 5, gap: 0.09, speed: 40, dmg: 5, spread: 1.3, sfx: 'enemy' },
   },
   hog: {
-    name: 'Brutamontes', hp: 420, score: 650, cost: 5, minWave: 5, w: 1.6, lat: 3, ai: 'shooter', armor: 0.5, range: [-14, -6],
+    name: 'Brutamontes', hp: 420, score: 650, cost: 5, minWave: 6, w: 1.6, lat: 3, ai: 'shooter', armor: 0.5, range: [-14, -6],
     look: { bike: 'chopper', hair: ['cowboy', 'helmet', 'bald'], weapon: 'shotgun', bulk: 1.45, beard: true, spikes: true },
     fire: { every: [2.4, 3.4], burst: 1, gap: 0, pellets: 7, speed: 32, dmg: 5, spread: 2.2, sfx: 'enemyShotgun' },
   },
   sniper: {
-    name: 'Caveira', hp: 75, score: 350, cost: 3, minWave: 6, w: 1.8, lat: 3, ai: 'sniper', range: [-46, -30],
+    name: 'Caveira', hp: 75, score: 350, cost: 3, minWave: 7, w: 1.8, lat: 3, ai: 'sniper', range: [-46, -30],
     look: { bike: 'standard', hair: ['skull'], weapon: 'rifle' },
   },
 };
 
-export const BOSS_NAMES = ['BIG MAMA E SUA PICAPE', 'O REI DA ROTA 66', 'CAMINHÃO DO CAPETA'];
+export const BOSS_NAMES = ['BIG MAMA E SUA PICAPE', 'O REI DA ROTA 66', 'CAMINHÃO DO CAPETA', 'O XERIFE CORRUPTO'];
 
 // aponta o -Z do objeto pro alvo (no espaço do pai)
 function aimAt(obj, target, maxYaw = Math.PI, maxPitch = 1.2) {
@@ -97,7 +97,30 @@ function makeHpBar(w) {
 
 class Base {
   setFlash(on) {
-    for (const m of this.meshes) m.material = on ? MAT.flash : m.userData.baseMat;
+    const ice = this.slowT > 0;
+    this.tinted = ice;
+    for (const m of this.meshes) m.material = on ? MAT.flash : ice && m.userData.baseMat === MAT.lit ? MAT.ice : m.userData.baseMat;
+  }
+  // fogo e gelo (habilidades) + câmera lenta (power-up); devolve o multiplicador de tempo
+  tickStatus(dt) {
+    let k = 1;
+    if (this.slowT > 0) {
+      this.slowT -= dt;
+      k = this.slowMul || 0.6;
+      if (Math.random() < 0.15) G.fx.burst('ice', this.sw[1], 1, { speed: 1, size: 0.12, life: 0.5, grav: 3, anchor: 1 });
+    }
+    if ((this.slowT > 0) !== !!this.tinted && !(this.flashT > 0)) this.setFlash(false);
+    if (this.burnT > 0) {
+      this.burnT -= dt;
+      if (Math.random() < 0.6) G.fx.fire(this.sw[1], 1, 0.3, 0.7);
+      this.burnTick = (this.burnTick || 0.5) - dt;
+      if (this.burnTick <= 0) {
+        this.burnTick = 0.5;
+        this.takeHit(this.burnDps * 0.5, 'burn', this.sw[1].clone(), null);
+      }
+      if (this.burnT <= 0) this.burnDps = 0;
+    }
+    return k * (G.pow.slow > 0 ? 0.35 : 1);
   }
   updateSpheres() {
     for (let i = 0; i < this.spheres.length; i++) {
@@ -269,6 +292,8 @@ export class Enemy extends Base {
       this.updateDeath(dt);
       return;
     }
+    dt *= this.tickStatus(dt);
+    if (this.dying) return;
     const P = G.player;
     const T = this.T;
     this.age += dt;
@@ -538,9 +563,10 @@ export class Enemy extends Base {
     if (part === 'bike' || (part === 'body' && this.T.armor)) {
       G.fx.spark(pt, 6);
       G.audio.play('metal', pt);
-    } else if (part !== 'blast') G.fx.blood(pt, part === 'head' ? 14 : 7);
+    } else if (part === 'zap') G.fx.burst('cyan', pt, 5, { speed: 3, size: 0.08, life: 0.25, anchor: 0.5 });
+    else if (part !== 'blast' && part !== 'burn') G.fx.blood(pt, part === 'head' ? 14 : 7);
     if (dir) this.vx += dir.x * 0.6;
-    if (this.hp <= 0) this.die({ headshot: part === 'head', blast: part === 'blast' });
+    if (this.hp <= 0) this.die({ headshot: part === 'head', blast: part === 'blast', zap: part === 'zap', burn: part === 'burn' });
     return { solid: true, enemy: true, head: part === 'head', kill: this.dying };
   }
 
@@ -694,6 +720,8 @@ export class Boss extends Base {
       this.updateDeath(dt);
       return;
     }
+    dt *= this.tickStatus(dt);
+    if (this.dying) return;
     let tx = P.x + Math.sin(this.age * 0.45) * 4;
     let tz = -22 + Math.sin(this.age * 0.3) * 5;
     if (this.entering) {
@@ -825,8 +853,9 @@ export class Boss extends Base {
     this.hp -= dmg * mult;
     this.flashT = 0.05;
     this.setFlash(true);
+    if (part === 'zap') G.fx.burst('cyan', pt, 6, { speed: 3, size: 0.1, life: 0.25, anchor: 0.5 });
     if (part === 'head') G.fx.blood(pt, 12);
-    else G.fx.spark(pt, 4);
+    else if (part !== 'burn') G.fx.spark(pt, 4);
     if (part !== 'head' && Math.random() < 0.3) G.audio.play('metal', pt);
     if (this.hp <= 0) this.die({ headshot: part === 'head' });
     return { solid: true, enemy: true, head: part === 'head', kill: this.dying };
@@ -909,6 +938,29 @@ export class Enemies {
   }
   rayHits(o, d, max, out) {
     for (const e of this.list) e.rayHits(o, d, max, out);
+  }
+  // alvo preferido dentro do cone de mira; se não houver, o mais perto à frente
+  acquire(o, dir, skip = null) {
+    let best = null;
+    let bestS = Infinity;
+    let near = null;
+    let nearD = Infinity;
+    for (const e of this.list) {
+      if (e.dying || (skip && skip.has(e))) continue;
+      _v.copy(e.sw[1] || e.sw[0]).sub(o);
+      const d = _v.length();
+      if (d > 160) continue;
+      const c = _v.dot(dir) / (d || 1);
+      if (c > 0.75 && (1 - c) * 40 + d * 0.02 < bestS) {
+        bestS = (1 - c) * 40 + d * 0.02;
+        best = e;
+      }
+      if (c > -0.2 && d < nearD) {
+        nearD = d;
+        near = e;
+      }
+    }
+    return best || near;
   }
   blast(p, r, dmg) {
     if (dmg <= 0) return;

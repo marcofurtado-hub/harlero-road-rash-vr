@@ -2,18 +2,26 @@
 import * as THREE from 'three';
 import { G, clamp } from './ctx.js';
 import { makeCanvas, FW, FB, fitFont, strokeText, roundRect, setFont } from './text.js';
+import { SKILL_BY_ID } from './skills.js';
+
+const EMOJI = '"Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",sans-serif';
+const POW_HUD = [
+  ['gold', '⭐ OURO', '#ffd040'],
+  ['boom', '💣 BOMBA', '#ff7030'],
+  ['slow', '⏳ LENTO', '#60a8ff'],
+];
 
 export class Hud {
   constructor(player) {
     this.player = player;
     // painel
-    this.canvas = makeCanvas(512, 320);
+    this.canvas = makeCanvas(512, 384);
     this.canvas.id = 'dash';
     this.g = this.canvas.getContext('2d');
     this.tex = new THREE.CanvasTexture(this.canvas);
     this.tex.colorSpace = THREE.SRGBColorSpace;
     this.tex.anisotropy = 4;
-    const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.2), new THREE.MeshBasicMaterial({ map: this.tex, fog: false }));
+    const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.24), new THREE.MeshBasicMaterial({ map: this.tex, fog: false }));
     dash.position.set(0, 0.975, -0.283);
     dash.rotation.x = -0.83;
     player.bike.group.add(dash);
@@ -123,7 +131,7 @@ export class Hud {
   drawDash() {
     const g = this.g;
     const W = 512;
-    const H = 320;
+    const H = 384;
     const P = this.player;
     g.clearRect(0, 0, W, H);
     roundRect(g, 4, 4, W - 8, H - 8, 30);
@@ -189,7 +197,7 @@ export class Hud {
     setFont(g, 18, FB);
     g.fillStyle = '#ff9a5a';
     const left = G.waves.active ? G.waves.remaining() : 0;
-    g.fillText(G.state === 'wave' ? `PUNKS: ${left}` : G.state === 'cleared' ? 'CAMINHÃO À VISTA' : G.state === 'dead' ? 'GAME OVER' : '', x0, 82);
+    g.fillText(G.state === 'wave' ? `PUNKS: ${left}` : G.state === 'cleared' ? (G.gates.active ? 'PASSE NUM PORTAL' : 'CAMINHÃO À VISTA') : G.state === 'dead' ? 'GAME OVER' : '', x0, 82);
     setFont(g, 26, FB);
     g.fillStyle = '#ffffff';
     g.fillText(String(Math.floor(G.score)).padStart(7, '0'), x0, 120);
@@ -209,15 +217,55 @@ export class Hud {
     g.textAlign = 'center';
     g.fillText(`${Math.ceil(P.hp)} / ${P.stats.maxHp}`, x0 + 105, 180);
     g.textAlign = 'left';
-    // combo / fúria
-    if (G.combo > 1) {
-      setFont(g, 24, FB);
-      strokeText(g, `COMBO x${G.combo}`, x0, 222, '#ff4fd0', null);
+    // combo / multiplicador de velocidade
+    setFont(g, 22, FB);
+    if (G.combo > 1) strokeText(g, `COMBO x${G.combo}`, x0, 220, '#ff4fd0', null);
+    const sm = 1 + Math.max(0, P.speed - 30) / 44;
+    if (sm > 1.05 && G.state !== 'title') {
+      g.textAlign = 'right';
+      g.fillStyle = '#40e8ff';
+      g.fillText(`x${sm.toFixed(1)}`, W - 26, 220);
+      g.textAlign = 'left';
     }
+    // power-ups ativos
+    let py = 250;
+    setFont(g, 18, FB);
     if (G.furyT > 0) {
-      setFont(g, 20, FB);
       g.fillStyle = Math.sin(G.time * 14) > 0 ? '#ff3030' : '#ffd21e';
-      g.fillText(`FÚRIA ${Math.ceil(G.furyT)}s`, x0, 252);
+      g.fillText(`🎸 FÚRIA ${Math.ceil(G.furyT)}s`, x0, py);
+      py += 24;
+    }
+    for (const [k, label, col] of POW_HUD) {
+      if (!(G.pow[k] > 0) || py > 300) continue;
+      g.fillStyle = G.pow[k] < 2 && Math.sin(G.time * 16) > 0 ? '#ffffff' : col;
+      g.fillText(`${label} ${Math.ceil(G.pow[k])}s`, x0, py);
+      py += 24;
+    }
+    // escudo
+    if (P.lvl('shield')) {
+      g.fillStyle = P.shieldT > 0 ? '#556' : '#60e8ff';
+      g.textAlign = 'right';
+      g.fillText(P.shieldT > 0 ? `🛡️ ${Math.ceil(P.shieldT)}s` : '🛡️ OK', W - 26, 250);
+      g.textAlign = 'left';
+    }
+    // build de habilidades (ícone + nível)
+    const ids = Object.keys(P.sk).filter((id) => SKILL_BY_ID[id] && SKILL_BY_ID[id].max < 99);
+    if (ids.length) {
+      const n = ids.length;
+      const step = Math.min(44, (W - 40) / n);
+      ids.forEach((id, i) => {
+        const x = 26 + step * i + step / 2;
+        g.textAlign = 'center';
+        g.font = `${Math.min(30, step - 10)}px ${EMOJI}`;
+        g.fillText(SKILL_BY_ID[id].icon, x, 340);
+        const lv = P.sk[id];
+        if (lv > 1) {
+          setFont(g, 14, FB);
+          g.fillStyle = '#ffd21e';
+          g.fillText(String(lv), x + step * 0.32, 360);
+        }
+      });
+      g.textAlign = 'left';
     }
     // alerta de inimigos atrás
     let l = false;
@@ -233,7 +281,7 @@ export class Hud {
       setFont(g, 20, FB);
       g.fillStyle = '#ff3030';
       g.textAlign = 'center';
-      g.fillText(`${l ? '◀ ' : ''}ATRÁS${r ? ' ▶' : ''}`, x0 + 105, 290);
+      g.fillText(`${l ? '◀ ' : ''}ATRÁS${r ? ' ▶' : ''}`, x0 + 105, 302);
     }
     this.tex.needsUpdate = true;
   }

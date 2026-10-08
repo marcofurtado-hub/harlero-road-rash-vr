@@ -5,9 +5,38 @@ import * as Models from './models.js';
 import { trafficCar } from './scenery.js';
 import { toWorld, fromWorld } from './curve.js';
 import { raySphere } from './projectiles.js';
+import { canvasTex } from './text.js';
+import { curveMaterial } from './curve.js';
 
 const _v = new THREE.Vector3();
 const LANES = [-6, -2, 2, 6];
+
+// power-ups (caem dos punks): atire na caixa ou passe por cima
+export const POW = {
+  gold: { icon: '⭐', color: 0xffc020, ring: 0xffd040, name: 'BALA DE OURO!', sub: 'dano x3 por 10 s' },
+  boom: { icon: '💣', color: 0xe04a10, ring: 0xff6020, name: 'BALA EXPLOSIVA!', sub: 'todo tiro explode por 10 s' },
+  slow: { icon: '⏳', color: 0x3a70ff, ring: 0x60a0ff, name: 'CÂMERA LENTA!', sub: 'punks e balas a 35% por 7 s' },
+  health: { icon: '❤️', color: 0x2aa84a, ring: 0x40ff60, name: '+35 VIDA', sub: '' },
+  fury: { icon: '🎸', color: 0xb01020, ring: 0xff3030, name: 'FÚRIA DO ROCK!', sub: 'dano e cadência turbinados' },
+};
+const EMOJI = '"Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",sans-serif';
+const iconMats = {};
+function iconMat(kind) {
+  if (!iconMats[kind]) {
+    const tex = canvasTex(128, 128, (g, w, h) => {
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.font = `100px ${EMOJI}`;
+      g.fillText(POW[kind].icon, w / 2, h / 2 + 6);
+    });
+    iconMats[kind] = curveMaterial(new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.3, depthWrite: false }));
+  }
+  return iconMats[kind];
+}
+const iconGeo = new THREE.PlaneGeometry(0.75, 0.75);
+const ringMats = {};
+const ringMat = (kind) =>
+  (ringMats[kind] ||= curveMaterial(new THREE.MeshBasicMaterial({ color: POW[kind].ring, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false })));
 
 const ringGeo = new THREE.RingGeometry(0.5, 0.65, 20).rotateX(-Math.PI / 2);
 
@@ -51,15 +80,22 @@ export class Hazards {
         hw = 0.3;
         break;
       case 'health':
-        obj = new THREE.Group();
-        obj.add(Models.healthCrate());
-        hw = 0.7;
-        break;
       case 'fury':
+      case 'gold':
+      case 'boom':
+      case 'slow': {
         obj = new THREE.Group();
-        obj.add(Models.furyPick());
-        hw = 0.7;
+        const crate = Models.powCrate(POW[kind].color);
+        crate.scale.setScalar(0.8);
+        obj.add(crate);
+        const ic = new THREE.Mesh(iconGeo, iconMat(kind));
+        ic.position.set(0, 0.75, 0);
+        ic.frustumCulled = false;
+        ic.userData.shared = true;
+        obj.add(ic);
+        hw = 0.8;
         break;
+      }
       case 'fire': {
         obj = new THREE.Group();
         for (let i = 0; i < 6; i++) {
@@ -74,9 +110,10 @@ export class Hazards {
       default:
         return null;
     }
-    if (kind === 'health' || kind === 'fury') {
-      const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: kind === 'health' ? 0x40ff60 : 0xff3030, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
-      ring.position.y = -0.55;
+    if (POW[kind]) {
+      const ring = new THREE.Mesh(ringGeo, ringMat(kind));
+      ring.position.y = -0.7;
+      ring.userData.shared = true;
       obj.add(ring);
     }
     obj.position.set(x, 0, z);
@@ -91,25 +128,50 @@ export class Hazards {
   }
 
   drop(kind, x, z) {
-    const h = this.spawn(kind, clamp(x, -7.5, 7.5), z);
+    if (this.list.filter((h) => POW[h.kind] && !h.dead).length >= 2) return;
+    const h = this.spawn(kind, clamp(x, -7.5, 7.5), Math.min(z, -6));
     if (h) h.drop = true;
   }
 
   rayHits(o, d, max, out) {
     for (const h of this.list) {
-      if (h.dead || h.kind !== 'barrel') continue;
-      toWorld(_v.set(h.x, 0.5, h.z));
-      const t = raySphere(o, d, _v, 0.45);
-      if (t >= 0 && t < max) out.push({ t, obj: this.wrap(h), part: 'barrel' });
+      if (h.dead) continue;
+      if (h.kind === 'barrel') {
+        toWorld(_v.set(h.x, 0.5, h.z));
+        const t = raySphere(o, d, _v, 0.45);
+        if (t >= 0 && t < max) out.push({ t, obj: this.wrap(h), part: 'barrel' });
+      } else if (POW[h.kind]) {
+        toWorld(_v.set(h.x, h.obj.position.y + 0.2, h.z));
+        const t = raySphere(o, d, _v, 0.9);
+        if (t >= 0 && t < max) out.push({ t, obj: this.wrap(h), part: 'pow' });
+      }
     }
   }
   wrap(h) {
     return {
       takeHit: () => {
-        this.explodeBarrel(h, true);
+        if (POW[h.kind]) this.collect(h);
+        else this.explodeBarrel(h, true);
         return { solid: true };
       },
     };
+  }
+
+  collect(h) {
+    if (h.dead) return;
+    h.dead = true;
+    const P = G.player;
+    const def = POW[h.kind];
+    const p = toWorld(new THREE.Vector3(h.x, h.obj.position.y, h.z));
+    G.audio.play('powerup');
+    G.fx.burst(h.kind === 'slow' ? 'cyan' : h.kind === 'health' ? 'green' : h.kind === 'gold' ? 'gold' : 'fire', p, 36, { speed: 5, size: 0.14, life: 0.7, anchor: 0.8 });
+    if (h.kind === 'health') P.heal(35);
+    else if (h.kind === 'fury') {
+      G.furyT = 10;
+      if (G.audio.music) G.audio.music.lead = true;
+    } else G.pow[h.kind] = h.kind === 'slow' ? 7 : 10;
+    G.hud.announce(def.name, def.sub, '#' + def.ring.toString(16).padStart(6, '0'), 1.8);
+    P.pulseAll(0.6, 120);
   }
 
   explodeBarrel(h, shot) {
@@ -133,7 +195,7 @@ export class Hazards {
   // retorna x alvo pra desviar ou null
   avoid(e) {
     for (const h of this.list) {
-      if (h.dead || h.kind === 'cone' || h.kind === 'health' || h.kind === 'fury') continue;
+      if (h.dead || h.kind === 'cone' || POW[h.kind]) continue;
       if (h.z < e.z && e.z - h.z < 24 && Math.abs(h.x - e.x) < h.hw + 1.3) {
         return h.x + (e.x >= h.x ? 1 : -1) * (h.hw + 2.2);
       }
@@ -145,7 +207,7 @@ export class Hazards {
     const P = G.player;
     const speed = G.speed;
     // geração
-    if (G.state === 'wave' || G.state === 'cleared' || G.state === 'upgrade') {
+    if ((G.state === 'wave' || G.state === 'cleared') && !G.gates.active) {
       this.spawnT -= dt;
       if (this.spawnT <= 0) {
         const busy = G.state === 'wave';
@@ -184,8 +246,8 @@ export class Hazards {
         }
       }
       // animação
-      if (h.kind === 'health' || h.kind === 'fury') {
-        h.obj.position.y = 0.75 + Math.sin(h.t * 3) * 0.12;
+      if (POW[h.kind]) {
+        h.obj.position.y = 0.9 + Math.sin(h.t * 3) * 0.12;
         h.obj.children[0].rotation.y += dt * 2.2;
       } else if (h.kind === 'fire') {
         for (const c of h.obj.children) c.scale.set(1, 0.7 + 0.4 * Math.abs(Math.sin(h.t * 9 + c.userData.ph)), 1);
@@ -247,19 +309,11 @@ export class Hazards {
         G.audio.play('whoosh');
         break;
       case 'health':
-        P.heal(30);
-        h.dead = true;
-        G.audio.play('pickup');
-        G.fx.burst('green', _v.set(P.x, 1, -1), 20, { speed: 3, size: 0.1, life: 0.6 });
-        G.fx.text('+30 VIDA', _v.set(P.x, 2, -3.5), '#60ff80', 0.45);
-        break;
       case 'fury':
-        G.furyT = 10;
-        h.dead = true;
-        G.audio.play('pickup');
-        G.audio.play('select');
-        G.fx.text('FÚRIA DO ROCK!', _v.set(P.x, 2.1, -3.5), '#ff3030', 0.55);
-        if (G.audio.music) G.audio.music.lead = true;
+      case 'gold':
+      case 'boom':
+      case 'slow':
+        this.collect(h);
         break;
       case 'fire':
         P.hurt(14, h.obj.position);
@@ -273,7 +327,7 @@ export class Hazards {
 
   spawnPattern() {
     const z = -270;
-    const kind = weightedPick(['barrel', 'barrels', 'wreck', 'cones', 'traffic', 'overtake', 'fury'], (k) => ({ barrel: 2.6, barrels: 1.3, wreck: 1.2, cones: 1.4, traffic: 3.2, overtake: 1, fury: 0.25 })[k]);
+    const kind = weightedPick(['barrel', 'barrels', 'wreck', 'cones', 'traffic', 'overtake'], (k) => ({ barrel: 2.6, barrels: 1.3, wreck: 1.2, cones: 1.4, traffic: 3.2, overtake: 1 })[k]);
     const lane = pick(LANES) + rand(-0.8, 0.8);
     if (kind === 'traffic') {
       // carro mais lento na sua frente (às vezes dois lado a lado)

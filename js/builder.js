@@ -17,6 +17,8 @@ export const MAT = {
   lit: curveMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true })),
   glow: curveMaterial(new THREE.MeshBasicMaterial({ vertexColors: true })),
   flash: curveMaterial(new THREE.MeshBasicMaterial({ color: 0xffffff })),
+  // punk congelado (Bala Congelante)
+  ice: curveMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, color: 0x9ad8ff, emissive: 0x123a5a })),
   far: new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }),
   // sem enrolar no tambor (pra coisas que já estão no espaço aparente, ex.: projéteis)
   litFlat: new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }),

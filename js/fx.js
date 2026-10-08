@@ -138,6 +138,16 @@ class Particles {
 
 const _c = new THREE.Color();
 const _v = new THREE.Vector3();
+const _zero = new THREE.Matrix4().makeScale(0, 0, 0);
+const _bd = new THREE.Vector3();
+const _bp1 = new THREE.Vector3();
+const _bp2 = new THREE.Vector3();
+const _bprev = new THREE.Vector3();
+const _bnext = new THREE.Vector3();
+const _bq = new THREE.Quaternion();
+const _bm = new THREE.Matrix4();
+const _bs = new THREE.Vector3();
+const _fwd = new THREE.Vector3(0, 0, 1);
 const COLS = {
   fire: [0xffb030, 0xff7a10, 0xffd860, 0xff5000],
   spark: [0xffe9a0, 0xffc040, 0xffffff],
@@ -148,6 +158,10 @@ const COLS = {
   green: [0x60ff80, 0xa0ffb0],
   cyan: [0x40f0ff, 0xa0ffff, 0xffffff],
   red: [0xff3030, 0xff8080],
+  wind: [0xffffff, 0xdde8ff, 0xc8d8ff],
+  ice: [0x9ae8ff, 0xd8f8ff, 0x60c8ff],
+  purple: [0xc070ff, 0xe0b0ff, 0xffffff],
+  gold: [0xffe060, 0xffc020, 0xfff0a0],
 };
 
 export class FX {
@@ -205,6 +219,53 @@ export class FX {
       this.texts.push(sp);
     }
     this.txIdx = 0;
+    // raios (tesla, choque): segmentos com vida própria num InstancedMesh (1 draw call)
+    const MAXB = 420;
+    const bgeo = new THREE.BoxGeometry(1, 1, 1);
+    bgeo.translate(0, 0, 0.5);
+    this.boltMesh = new THREE.InstancedMesh(bgeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }), MAXB);
+    this.boltMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.boltMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAXB * 3), 3).setUsage(THREE.DynamicDrawUsage);
+    this.boltMesh.frustumCulled = false;
+    this.boltMesh.renderOrder = 12;
+    scene.add(this.boltMesh);
+    this.segs = Array.from({ length: MAXB }, () => ({ a: new THREE.Vector3(), b: new THREE.Vector3(), w: 0, t: 0, life: 1, col: new THREE.Color() }));
+    for (let i = 0; i < MAXB; i++) this.boltMesh.setMatrixAt(i, _zero);
+    this.sIdx = 0;
+    this.boltsOn = 0;
+  }
+
+  // raio em zigue-zague de a até b (jag ~0.15 elegante, 0.3+ caótico)
+  bolt(a, b, color = 0x80e0ff, jag = 0.15, life = 0.1, width = 0.05) {
+    const dist = a.distanceTo(b);
+    const n = Math.max(2, Math.min(14, Math.round(dist / 1.3)));
+    _bd.subVectors(b, a);
+    _bp1.set(-_bd.z, 0, _bd.x);
+    if (_bp1.lengthSq() < 1e-6) _bp1.set(1, 0, 0);
+    _bp1.normalize();
+    _bp2.crossVectors(_bd, _bp1).normalize();
+    const amp = (jag * dist) / n * 2.2;
+    _bprev.copy(a);
+    for (let i = 1; i <= n; i++) {
+      const k = i / n;
+      _bnext.copy(a).addScaledVector(_bd, k);
+      if (i < n) _bnext.addScaledVector(_bp1, rand(-1, 1) * amp).addScaledVector(_bp2, rand(-1, 1) * amp);
+      this.seg(_bprev, _bnext, color, width, life);
+      this.seg(_bprev, _bnext, 0xffffff, width * 0.35, life * 0.8);
+      _bprev.copy(_bnext);
+    }
+  }
+  seg(a, b, color, w, life) {
+    const s = this.segs[this.sIdx];
+    this.sIdx = (this.sIdx + 1) % this.segs.length;
+    s.a.copy(a);
+    s.b.copy(b);
+    s.w = w;
+    s.t = life;
+    s.life = life;
+    _c.setHex(color, THREE.LinearSRGBColorSpace);
+    s.col.copy(_c);
+    this.boltsOn = 0.3;
   }
 
   burst(kind, p, n, o = {}) {
@@ -306,9 +367,37 @@ export class FX {
     sp.visible = true;
   }
 
+  updateBolts(dt) {
+    if (this.boltsOn <= 0) return;
+    this.boltsOn -= dt;
+    const M = this.boltMesh;
+    for (let i = 0; i < this.segs.length; i++) {
+      const s = this.segs[i];
+      if (s.t <= 0) {
+        if (s.w) {
+          s.w = 0;
+          M.setMatrixAt(i, _zero);
+        }
+        continue;
+      }
+      s.t -= dt;
+      const k = Math.max(0, s.t / s.life);
+      _bd.subVectors(s.b, s.a);
+      const len = _bd.length();
+      _bq.setFromUnitVectors(_fwd, _bd.multiplyScalar(1 / (len || 1)));
+      _bm.compose(s.a, _bq, _bs.set(s.w, s.w, len));
+      M.setMatrixAt(i, _bm);
+      _c.copy(s.col).multiplyScalar(k);
+      M.setColorAt(i, _c);
+    }
+    M.instanceMatrix.needsUpdate = true;
+    M.instanceColor.needsUpdate = true;
+  }
+
   update(dt) {
     this.add.update(dt);
     this.norm.update(dt);
+    this.updateBolts(dt);
     const speed = G.speed;
     for (const m of this.tracers) {
       if (!m.visible) continue;

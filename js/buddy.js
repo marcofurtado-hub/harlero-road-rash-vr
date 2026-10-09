@@ -1,5 +1,5 @@
 // Corvo ajudante: aparece por 8 segundos, voa do lado do seu ombro e dá uns tiros meio tortos.
-// Vem pela habilidade Corvo Atirador (de tempos em tempos) ou pela caixa de power-up 🐦.
+// Vem pela caixa de power-up 🐦 (que cai dos punks ou do caminhão).
 import * as THREE from 'three';
 import { G, rand, pick } from './ctx.js';
 import { crowModel } from './models.js';
@@ -43,15 +43,6 @@ export class Crows {
     if (G.state === 'title') {
       if (this.list.length) this.clear();
       return;
-    }
-    // habilidade: chama um corvo de tempos em tempos durante a onda
-    const lvl = P.lvl('crow');
-    if (lvl && G.state === 'wave') {
-      this.cd -= dt;
-      if (this.cd <= 0) {
-        this.cd = lvl >= 2 ? 15 : 22;
-        this.summon();
-      }
     }
     if (!this.list.length) return;
     const head = this.rig.worldToLocal(_v.copy(P.headW));

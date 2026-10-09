@@ -2,7 +2,6 @@
 import * as THREE from 'three';
 import { G, clamp } from './ctx.js';
 import { makeCanvas, FW, FB, fitFont, strokeText, roundRect, setFont } from './text.js';
-import { SKILL_BY_ID } from './skills.js';
 
 const EMOJI = '"Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",sans-serif';
 const POW_HUD = [
@@ -197,7 +196,7 @@ export class Hud {
     setFont(g, 18, FB);
     g.fillStyle = '#ff9a5a';
     const left = G.waves.active ? G.waves.remaining() : 0;
-    g.fillText(G.state === 'wave' ? `PUNKS: ${left}` : G.state === 'cleared' ? (G.gates.active ? 'PASSE NUM PORTAL' : 'CAMINHÃO À VISTA') : G.state === 'dead' ? 'GAME OVER' : '', x0, 82);
+    g.fillText(G.state === 'wave' ? `PUNKS: ${left}` : G.state === 'cleared' ? 'CAMINHÃO À VISTA' : G.state === 'dead' ? 'GAME OVER' : '', x0, 82);
     setFont(g, 26, FB);
     g.fillStyle = '#ffffff';
     g.fillText(String(Math.floor(G.score)).padStart(7, '0'), x0, 120);
@@ -240,32 +239,6 @@ export class Hud {
       g.fillStyle = G.pow[k] < 2 && Math.sin(G.time * 16) > 0 ? '#ffffff' : col;
       g.fillText(`${label} ${Math.ceil(G.pow[k])}s`, x0, py);
       py += 24;
-    }
-    // escudo
-    if (P.lvl('shield')) {
-      g.fillStyle = P.shieldT > 0 ? '#556' : '#60e8ff';
-      g.textAlign = 'right';
-      g.fillText(P.shieldT > 0 ? `🛡️ ${Math.ceil(P.shieldT)}s` : '🛡️ OK', W - 26, 250);
-      g.textAlign = 'left';
-    }
-    // build de habilidades (ícone + nível)
-    const ids = Object.keys(P.sk).filter((id) => SKILL_BY_ID[id] && SKILL_BY_ID[id].max < 99);
-    if (ids.length) {
-      const n = ids.length;
-      const step = Math.min(44, (W - 40) / n);
-      ids.forEach((id, i) => {
-        const x = 26 + step * i + step / 2;
-        g.textAlign = 'center';
-        g.font = `${Math.min(30, step - 10)}px ${EMOJI}`;
-        g.fillText(SKILL_BY_ID[id].icon, x, 340);
-        const lv = P.sk[id];
-        if (lv > 1) {
-          setFont(g, 14, FB);
-          g.fillStyle = '#ffd21e';
-          g.fillText(String(lv), x + step * 0.32, 360);
-        }
-      });
-      g.textAlign = 'left';
     }
     // alerta de inimigos atrás
     let l = false;

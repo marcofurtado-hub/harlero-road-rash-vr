@@ -30,7 +30,9 @@ export class TruckEvent {
   }
 
   // reward: id da arma ou 'turbo' (turbina todas as armas)
-  start(reward, onDone) {
+  // extras = quantas caixas de vida / power-up caem junto com a encomenda da arma
+  start(reward, onDone, extras = 2) {
+    this.extras = extras;
     this.clear();
     this.active = true;
     this.reward = reward;
@@ -188,6 +190,13 @@ export class TruckEvent {
     this.scene.add(c);
     this.chest = c;
     G.audio.play('crash', c.position);
+    // a carga toda se espalha pela pista: atire nas caixas (ou passe por cima) pra pegar
+    const kinds = ['health', 'health', 'gold', 'boom', 'slow', 'crow', 'fury'];
+    for (let i = 0; i < this.extras; i++) {
+      const k = i === 0 ? 'health' : kinds[Math.floor(Math.random() * kinds.length)];
+      const h = G.hazards.spawn(k, Math.max(-7, Math.min(7, this.x + rand(-5, 5))), this.z + 6 + i * 7);
+      if (h) h.fall = 3 + i;
+    }
     G.fx.text('CAIU UMA ENCOMENDA!', toWorld(_v.copy(c.position).add(_w.set(0, 1.5, 0))), '#ffd21e', 0.6);
   }
 

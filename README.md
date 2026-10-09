@@ -1,6 +1,6 @@
 # HARLERO ROAD RASH 66 🏍️🔥🎸
 
-Jogo de tiro em VR (WebXR) para o **Meta Quest 2/3**: você pilota uma Harley numa viagem infinita e procedural pelos EUA, passando por túneis, pontes altíssimas e ladeiras, enquanto ondas de gangues de motoqueiros punks tentam te derrubar. A cada onda vem uma arma nova e você monta sua "build" passando por portais de habilidade na estrada. Tudo com rock gerado ao vivo.
+Jogo de tiro em VR (WebXR) para o **Meta Quest 2/3**: você pilota uma Harley numa viagem infinita e procedural pelos EUA, passando por túneis, pontes altíssimas e ladeiras, enquanto ondas de gangues de motoqueiros punks tentam te derrubar. A cada onda um caminhão de entregas desgovernado derruba uma arma nova e caixas de vida e power-up na pista. Morreu, morreu. Tudo com rock gerado ao vivo.
 
 Não tem build, não tem dependências: é HTML + JavaScript puro com o Three.js (r170) vendorizado em `lib/`.
 
@@ -39,7 +39,7 @@ python3 serve.py
 | Recentralizar | segure **Y** |
 | Ligar/desligar música | clique no **analógico esquerdo** (ou atire na carta 🎸 MÚSICA no menu) |
 
-Sem menus: **cada punk derrubado recupera um pouco de vida**. No fim de cada onda, um **caminhão de entregas da 66 EXPRESS** passa desgovernado costurando a pista, derruba uma encomenda (caixa de papelão com fita e etiqueta, ou engradado de madeira) e a arma nova voa direto pra sua mão. Logo depois aparecem **3 portais de habilidade** atravessando a estrada (ATAQUE à esquerda, EFEITO no meio, DEFESA à direita): é só passar de moto pelo que você quer. Sem fazer nada, você pega o do meio.
+Sem menus e sem upgrades: **cada punk derrubado recupera só um pouquinho de vida**. No fim de cada onda, um **caminhão de entregas da 66 EXPRESS** passa desgovernado costurando a pista, derruba uma encomenda (caixa de papelão com fita e etiqueta, ou engradado de madeira) e a arma nova voa direto pra sua mão. A carga também se espalha pela pista: **caixas de vida e power-up** (2 por onda, 4 depois de chefão). Atire nelas ou passe por cima.
 
 **Acelerar vale a pena**: os pontos de cada abate são multiplicados pela velocidade (até x2 no talo), mas o trânsito e os obstáculos chegam mais rápido. Ladeira abaixo a moto embala sozinha, e as **rampas** fazem a moto voar (quanto mais rápido, mais alto; voo longo dá pontos).
 
@@ -56,6 +56,8 @@ Para testar só no PC também dá pra usar `python3 serve.py --http` e abrir `ht
   - **Rampas** amarelas e pretas no meio da pista (às vezes numa faixa só, às vezes na estrada inteira), muitas vezes com a pista caindo logo depois.
   - Descidas fortes e subidas leves no resto do caminho.
   - Cada região tem seu tempero (o Grand Canyon tem mais pontes, a Redwood e Chicago mais túneis, o Death Valley mais ladeiras).
+- **Neblina com a cor do céu**: o que está longe some exatamente na cor do céu atrás dele (degradê e brilho do sol), sem aquele recorte branco.
+- **Golden Gate de verdade**: você chega por morros verdes com ciprestes e entra na ponte suspensa sobre a baía.
 - **Viagem arcade pelos EUA (estilo Cruis'n USA)**: estrada procedural com curvas e morros de verdade (dá pra ver a pista subindo e descendo lá na frente; o céu gira quando você faz a curva) e **uma região nova a cada onda**: Arizona/Rota 66 → Grand Canyon (corredor de paredões) → Death Valley (sal branco) → Floresta de Redwood (sequoias gigantes) → Golden Gate (ponte suspensa sobre o mar, com o chefão) → Fazendas de Iowa (milharal, silos, moinhos) → Chicago (arranha-céus) → Washington D.C. (obelisco, Capitólio, cerejeiras) e recomeça.
 - **Trânsito**: carros e picapes mais lentos na pista e outros te ultrapassando buzinando. Bater dói, e os punks também se arrebentam neles.
 - **Ondas** com dificuldade crescente e um tipo de inimigo novo por onda. **Chefão na Golden Gate (onda 5) e o grande final em Washington (onda 8)**. Depois a viagem recomeça mais difícil, com chefão a cada 4 ondas.
@@ -70,15 +72,14 @@ Para testar só no PC também dá pra usar `python3 serve.py --http` e abrir `ht
   - **Autogiro**: punk voando por cima da estrada, atirando de cima e soltando bombas na sua faixa (dá pra estourar a bomba no ar).
   - **Escudeiro**: escudo de choque na frente do peito. Mire na cabeça.
   - **Muscle Car**: conversível com chamas no capô, um atirador em pé no banco de trás e trombada que dói.
-  - **Chefão**: picape monstro com metralhadora giratória, foguetes, barris, **trombada** (ela recua até você e joga pro seu lado), **chuva de molotov** (sempre sobra uma faixa livre) e reforços. Abaixo de 50% de vida ele fica **FURIOSO**: ataca mais rápido e solta um bombardeio de 9 foguetes. Os tanques de combustível vermelhos são pontos fracos.
+- **3 chefões que se revezam** (todos ficam FURIOSOS abaixo de 50% de vida: atacam mais rápido e ganham ataques novos). As peças vermelhas com faixa amarela são pontos fracos:
+  - **Big Mama e sua picape** (onda 5): metralhadora giratória, foguetes, barris, **trombada** (recua até você e joga pro seu lado), **chuva de molotov** (sempre sobra uma faixa livre) e reforços.
+  - **Urubu de Aço, o helicóptero da gangue** (onda 8): voa na sua frente metralhando e soltando foguetes, faz **rasantes por cima de você bombardeando a sua faixa** e chama autogiros.
+  - **Caminhão-tanque do Capeta** (onda 12): **lança-chamas** que bota fogo na pista à sua frente, trombada, barris e foguetes.
 - **9 armas com munição infinita**, uma nova por onda: Escopeta Cano Duplo → Magnum .50 dourada (perfura) → Metralhadora → Bazuca → Escopeta Automática → Mini-Gatling → **Foguetes Teleguiados** (rajada de 3 mísseis que perseguem os punks) → **Flying V Laser** (uma guitarra que solta um feixe contínuo) → **Bobina Tesla** (raio que salta de punk em punk em cascata).
-- **Habilidades estilo Archero** (a mesma lógica do Chicken Rancher), que mudam o tiro de forma visível e viram uma build:
-  - Ataque: **Bala Dupla** e **Tiro em Leque** (valem pra TODAS as armas, até o laser e a tesla), Calibre Grosso, Gatilho Nervoso, Olho de Águia (crítico), Sangue Quente.
-  - Efeito: Ricochete, Bala Incendiária, Bala Congelante, Bala Elétrica, Munição Explosiva, Bala Perfurante, Mira Magnética.
-  - Defesa: **Corvo Atirador** (de tempos em tempos um corvo de bandana vem ajudar por 8 segundos), Escudo Cromado, Jaqueta de Couro, Coração V8, Vampiro do Asfalto, Sorte Grande, Combo Mestre e o Pit Stop quando a vida está baixa.
-  - Regras: a 1ª escolha sempre tem um ataque épico, chefão dá 2 rodadas de portais e às vezes aparece algo que você já tem pra subir de nível.
 - **Power-ups** que caem dos punks (atire na caixa ou passe por cima): ⭐ Bala de Ouro (dano x3), 💣 Bala Explosiva, ⏳ Câmera Lenta (punks e balas a 35%), 🐦 Corvo de Aluguel (8 s), ❤️ Vida e 🎸 Fúria do Rock.
 - **Difícil de verdade**: cada punk derrubado cura só um pouquinho, as ondas vêm cheias e os inimigos batem forte.
+- **Modelos de arma caprichados** (canos azulados, madeira envernizada, Magnum dourada com tambor estriado, Thompson com tambor e cano aletado...) com material brilhante.
 - **Armas com a sensação do Chicken Rancher**: balas de verdade voando (60 a 120 m/s, colisão por segmento), espalhamento, coice curto, vibração e sons copiados do rancho. A gatling gira os 6 canos e atira na hora, sem aquecer.
 - **Caminhão desgovernado** entre as ondas, que derruba a encomenda com a arma nova (com câmera lenta quando ela salta).
 - **Pista viva**: barris explosivos (atire neles perto dos punks!), cones e trânsito. **Carros explodem depois de alguns tiros** (e levam os punks do lado junto, em reação em cadeia).
@@ -95,9 +96,8 @@ lib/three.module.js
 js/main.js        loop, estados do jogo, VR/desktop, pontuação, explosões
 js/player.js      moto, guidão (direção + acelerador), velocidade, habilidades, dano
 js/weapons.js     armas, multi-tiro, efeitos de impacto (fogo/gelo/choque/ricochete), tesla, laser
-js/skills.js      habilidades estilo Archero e regras das ofertas
-js/gates.js       portais de habilidade na estrada
-js/buddy.js       Corvo Atirador
+js/buddy.js       corvo ajudante (power-up)
+js/skyfog.js      neblina com a cor do céu
 js/features.js    túnel na montanha e ponte alta sobre o desfiladeiro
 js/enemies.js     tipos de inimigos, IA, ataques, mortes, chefão
 js/waves.js       diretor de ondas

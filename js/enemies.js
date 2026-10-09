@@ -65,7 +65,13 @@ export const TYPES = {
   },
 };
 
-export const BOSS_NAMES = ['BIG MAMA E SUA PICAPE', 'O REI DA ROTA 66', 'CAMINHÃO DO CAPETA', 'O XERIFE CORRUPTO'];
+// os chefões se revezam: picape monstro, helicóptero da gangue e caminhão-tanque lança-chamas
+export const BOSS_KINDS = ['truck', 'heli', 'tanker'];
+const BOSS_NAME_BY_KIND = { truck: ['BIG MAMA E SUA PICAPE', 'O REI DA ROTA 66'], heli: ['URUBU DE AÇO • HELICÓPTERO DA GANGUE'], tanker: ['CAMINHÃO-TANQUE DO CAPETA'] };
+export function bossName(idx) {
+  const list = BOSS_NAME_BY_KIND[BOSS_KINDS[idx % 3]];
+  return list[Math.floor(idx / 3) % list.length];
+}
 
 // aponta o -Z do objeto pro alvo (no espaço do pai)
 function aimAt(obj, target, maxYaw = Math.PI, maxPitch = 1.2) {
@@ -712,11 +718,12 @@ export class Boss extends Base {
     this.isBoss = true;
     this.idx = idx;
     this.T = { name: 'CHEFÃO', score: 5000 + idx * 2500 };
-    this.name = BOSS_NAMES[idx % BOSS_NAMES.length];
-    this.maxHp = this.hp = 4400 * (1 + 0.6 * idx) * (1 + 0.05 * G.wave);
+    this.kind = BOSS_KINDS[idx % 3];
+    this.name = bossName(idx);
+    this.maxHp = this.hp = 4400 * (1 + 0.6 * idx) * (1 + 0.05 * G.wave) * (this.kind === 'heli' ? 0.85 : this.kind === 'tanker' ? 1.15 : 1);
     this.dmgMul = 1.4 * (1 + 0.1 * (G.wave - 1));
     const color = pick([0x7a1010, 0x22252a, 0x4a2a7a, 0x2a5a2a]);
-    const m = Models.bossTruck(color);
+    const m = this.kind === 'heli' ? Models.bossHeli(color) : this.kind === 'tanker' ? Models.bossTanker(0x1a1a1c) : Models.bossTruck(color);
     this.root = new THREE.Group();
     this.root.add(m.body, m.front, m.rear);
     this.front = m.front;
@@ -729,21 +736,27 @@ export class Boss extends Base {
       skin: pick(Models.SKINS), jacket: 0x1a1a1a, pants: 0x222222, patch: color, hair: pick(['skull', 'helmet', 'mohawk']),
       hairColor: pick(Models.NEON), weapon: 'gatling', pose: 'sit', seatY: 1.42, bulk: 1.3, beard: true, spikes: true,
     });
-    this.gunner.group.position.z += 1.35;
     this.gunner.group.rotation.y = Math.PI;
+    if (this.kind === 'heli') this.gunner.group.position.set(0, -1.5, 1.5); // sentado na rampa traseira aberta
+    else if (this.kind === 'tanker') this.gunner.group.position.set(0, 2.85, 3.6); // em cima do tanque
+    else this.gunner.group.position.z += 1.35;
     this.root.add(this.gunner.group);
     this.shooter = this.gunner;
     this.riders = [];
+    const body =
+      this.kind === 'heli'
+        ? [[0, 0, -1.3, 1.35], [0, 0, 0.6, 1.25], [0, 0.6, 3.6, 0.7]]
+        : this.kind === 'tanker'
+          ? [[0, 2.0, -3.9, 1.4], [0, 2.3, -0.6, 1.4], [0, 2.3, 2.0, 1.4], [0, 2.3, 4.2, 1.3]]
+          : [[0, 1.9, -0.5, 1.15], [0, 1.4, -2.2, 1.0], [-0.6, 1.4, 1.9, 0.8], [0.6, 1.4, 1.9, 0.8]];
     this.spheres = [
       { obj: this.gunner.head, local: new V(0, 0.15, 0), r: 0.22, part: 'head' },
       { obj: this.gunner.group, local: new V(0, 0.12, 0.06), r: 0.42, part: 'body' },
-      { obj: this.root, local: new V(0, 1.9, -0.5), r: 1.15, part: 'body' },
-      { obj: this.root, local: new V(0, 1.4, -2.2), r: 1.0, part: 'body' },
-      { obj: this.root, local: new V(-0.6, 1.4, 1.9), r: 0.8, part: 'body' },
-      { obj: this.root, local: new V(0.6, 1.4, 1.9), r: 0.8, part: 'body' },
-      { obj: this.tanks[0].mesh, local: new V(0, 0, 0), r: 0.45, part: 'tank0' },
-      { obj: this.tanks[1].mesh, local: new V(0, 0, 0), r: 0.45, part: 'tank1' },
+      ...body.map(([x, y, z, r]) => ({ obj: this.root, local: new V(x, y, z), r, part: 'body' })),
+      { obj: this.tanks[0].mesh, local: new V(0, 0, 0), r: 0.5, part: 'tank0' },
+      { obj: this.tanks[1].mesh, local: new V(0, 0, 0), r: 0.5, part: 'tank1' },
     ];
+    this.tankIdx = this.spheres.length - 2;
     this.sw = this.spheres.map(() => new V());
     this.meshes = collectMeshes(this.root);
     this.hpBar = makeHpBar(2.2);
@@ -764,7 +777,7 @@ export class Boss extends Base {
   }
 
   center(out) {
-    return out.set(this.x, 1.6, this.z);
+    return out.set(this.x, this.kind === 'heli' ? this.root.position.y : 1.6, this.z);
   }
 
   update(dt) {
@@ -777,7 +790,12 @@ export class Boss extends Base {
     dt *= this.tickStatus(dt);
     if (this.dying) return;
     let tx = P.x + Math.sin(this.age * 0.45) * 4;
-    let tz = -22 + Math.sin(this.age * 0.3) * 5;
+    let tz = (this.kind === 'heli' ? -26 : this.kind === 'tanker' ? -18 : -22) + Math.sin(this.age * 0.3) * 5;
+    // rasante do helicóptero: passa por cima de você jogando bombas na sua faixa
+    if (this.atk === 'bombrun') {
+      tz = this.atkTime < 0.8 ? -40 : 14;
+      tx = P.x + Math.sin(this.atkTime * 1.5) * 1.5;
+    }
     if (this.entering) {
       tx = P.x + (this.x >= P.x ? 4.8 : -4.8);
       if (this.z < -10) this.entering = false;
@@ -794,16 +812,25 @@ export class Boss extends Base {
       if (this.z < -220) this.remove = true;
     }
     tx = clamp(tx, -6.5, 6.5);
-    const fast = this.atk === 'ram' ? 2.6 : this.enraged ? 1.5 : 1;
+    const fast = this.atk === 'ram' ? 2.6 : this.atk === 'bombrun' ? 2.2 : this.enraged ? 1.5 : 1;
     this.vx = damp(this.vx, clamp((tx - this.x) * 1.2 * fast, -4 * fast, 4 * fast), 2 * fast, dt);
     this.x += this.vx * dt;
     this.vz = damp(this.vz, clamp((tz - this.z) * 0.6 * fast, -10 * fast, 10 * fast), 1.2 * fast, dt);
     this.z += this.vz * dt;
     const absSpeed = G.speed - this.vz;
-    this.front.rotation.x -= (absSpeed * dt) / 0.66;
-    this.rear.rotation.x = this.front.rotation.x;
-    this.root.position.set(this.x, Math.sin(this.age * 9) * 0.03, this.z);
-    this.root.rotation.set(0, -this.vx * 0.03, -this.vx * 0.012);
+    if (this.kind === 'heli') {
+      this.front.rotation.y += dt * 24;
+      this.rear.rotation.x += dt * 30;
+      const alt = this.atk === 'bombrun' ? 6.5 : 8.5;
+      this.altY = damp(this.altY ?? 14, alt + Math.sin(this.age * 1.1) * 0.8, 1.5, dt);
+      this.root.position.set(this.x, this.altY, this.z);
+      this.root.rotation.set(-0.08 - this.vz * 0.012, -this.vx * 0.04, -this.vx * 0.06);
+    } else {
+      this.front.rotation.x -= (absSpeed * dt) / 0.66;
+      this.rear.rotation.x = this.front.rotation.x;
+      this.root.position.set(this.x, Math.sin(this.age * 9) * 0.03, this.z);
+      this.root.rotation.set(0, -this.vx * 0.03, -this.vx * 0.012);
+    }
     this.root.updateMatrixWorld(true);
     _t.copy(P.headW);
     aimAt(this.gunner.head, _t, 2.2, 0.6);
@@ -814,7 +841,7 @@ export class Boss extends Base {
       G.fx.smoke(apparent(_v.set(this.x, 2.2, this.z - 2)), 1, 0.8);
       if (Math.random() < 0.5) G.fx.fire(apparent(_v.set(this.x + rand(-0.5, 0.5), 2.0, this.z - 2.2)), 2, 0.4, 0.6);
     }
-    if (Math.random() < 0.3) G.fx.dust(apparent(_v.set(this.x + rand(-1.2, 1.2), 0.1, this.z + 1.8)), 1);
+    if (this.kind !== 'heli' && Math.random() < 0.3) G.fx.dust(apparent(_v.set(this.x + rand(-1.2, 1.2), 0.1, this.z + 1.8)), 1);
     this.attacks(dt);
     if (this.flashT > 0) {
       this.flashT -= dt;
@@ -838,8 +865,13 @@ export class Boss extends Base {
     if (!this.atk) {
       this.atkT -= dt;
       if (this.atkT <= 0) {
-        const opts = ['gatling', 'gatling', 'rockets', 'barrels', 'ram', 'molotovs'];
-        if (this.enraged) opts.push('barrage', 'ram', 'gatling');
+        const opts =
+          this.kind === 'heli'
+            ? ['gatling', 'gatling', 'rockets', 'bombrun', 'bombrun']
+            : this.kind === 'tanker'
+              ? ['flame', 'flame', 'gatling', 'barrels', 'ram', 'rockets']
+              : ['gatling', 'gatling', 'rockets', 'barrels', 'ram', 'molotovs'];
+        if (this.enraged) opts.push(...(this.kind === 'heli' ? ['barrage', 'bombrun'] : this.kind === 'tanker' ? ['flame', 'molotovs', 'barrage'] : ['barrage', 'ram', 'gatling']));
         if (G.enemies.aliveCount() < 6) opts.push('summon');
         let a = pick(opts);
         if (a === this.lastAtk && a !== 'gatling') a = pick(opts);
@@ -849,6 +881,8 @@ export class Boss extends Base {
         this.ramHit = false;
         this.ramSide = P.x > this.x ? -1 : 1;
         if (this.atk === 'gatling') G.audio.play('charge', this.root.position);
+        if (this.atk === 'bombrun') G.fx.text('RASANTE!', apparent(_v.set(this.x, 11, this.z)), '#ff4040', 0.8);
+        if (this.atk === 'flame') G.fx.text('LANÇA-CHAMAS!', apparent(_v.set(this.x, 5, this.z)), '#ff8020', 0.8);
         if (this.atk === 'ram') {
           G.audio.play('horn', this.root.position);
           G.fx.text('TROMBADA!', apparent(_v.set(this.x, 4, this.z)), '#ff4040', 0.7);
@@ -884,8 +918,9 @@ export class Boss extends Base {
       while (this.fired < n) {
         this.fired++;
         const s = this.fired % 2 ? -1 : 1;
-        const from = apparent(new V(this.x + s * 0.7, 2.4, this.z + 2.0));
-        G.proj.rocket(from, new V(s * rand(0.2, 0.6), 0.9, 0.5).normalize(), 13 * this.dmgMul);
+        const heli = this.kind === 'heli';
+        const from = apparent(new V(this.x + s * (heli ? 1.65 : 0.7), heli ? this.root.position.y - 0.3 : 2.4, this.z + (heli ? -1 : 2.0)));
+        G.proj.rocket(from, new V(s * rand(0.2, 0.6), heli ? 0.1 : 0.9, 0.5).normalize(), 13 * this.dmgMul);
         G.audio.play('whoosh', from);
         G.fx.smoke(from, 4, 0.5);
       }
@@ -920,9 +955,32 @@ export class Boss extends Base {
         G.fx.spark(_v.set((this.x + P.x) / 2, 1, -1), 40);
       }
       if (t > 3) this.endAttack();
+    } else if (this.atk === 'bombrun') {
+      // passa por cima soltando uma bomba a cada 0.25 s
+      if (t > 0.8 && this.z > -32 && this.z < 6) {
+        const n = Math.floor((t - 0.8) / (this.enraged ? 0.17 : 0.25));
+        while (this.fired < n) {
+          this.fired++;
+          const from = apparent(new V(this.x, this.root.position.y - 1.2, this.z));
+          G.proj.bomb(from, new V(clamp(P.x + rand(-1.8, 1.8), -7.5, 7.5), 0, -rand(1, 7)), 0.8);
+        }
+      }
+      if (t > 4.2) this.endAttack();
+    } else if (this.atk === 'flame') {
+      // jatos de fogo pra trás: a pista à sua frente pega fogo (sobra uma faixa livre)
+      if (t > 0.3 && this.fired === 0) {
+        this.fired = 1;
+        const gap = Math.floor(rand(0, 4));
+        [-6, -2, 2, 6].forEach((x, i) => {
+          if (i !== gap) G.hazards.fire(x + rand(-0.4, 0.4), this.z + 9 + rand(0, 6));
+        });
+        G.audio.play('explosion', this.root.position);
+      }
+      if (t < 1.4) for (const s2 of [-1, 1]) G.fx.burst('fire', apparent(_v.set(this.x + s2 * 0.9, 1.2, this.z + 5.9)), 3, { speed: 3, vz: 14, size: 0.6, sizeEnd: 0.2, life: 0.5, anchor: 0.3 });
+      if (t > 1.8) this.endAttack();
     } else if (this.atk === 'summon') {
       G.enemies.spawn('punk', { from: 'behind' });
-      G.enemies.spawn(pick(['punk', 'rammer', 'kamikaze', 'gyro']), { from: 'behind' });
+      G.enemies.spawn(this.kind === 'heli' ? 'gyro' : pick(['punk', 'rammer', 'kamikaze', 'gyro']), { from: this.kind === 'heli' ? 'ahead' : 'behind' });
       if (this.enraged) G.enemies.spawn(pick(['shield', 'muscle']), { from: 'behind' });
       G.fx.text('REFORÇOS!', apparent(_v.set(this.x, 3.5, this.z)), '#ff4040', 0.8);
       this.endAttack();
@@ -945,7 +1003,7 @@ export class Boss extends Base {
         if (tk.hp <= 0) {
           tk.alive = false;
           tk.mesh.visible = false;
-          this.spheres[part === 'tank0' ? 6 : 7].off = true;
+          this.spheres[this.tankIdx + (part === 'tank0' ? 0 : 1)].off = true;
           tk.mesh.getWorldPosition(_v);
           G.explode(apparent(_v.clone()), 4, 0, {});
           this.hp -= this.maxHp * 0.12;
@@ -983,16 +1041,21 @@ export class Boss extends Base {
     const n = Math.floor(this.deathT / 0.3);
     while (this.booms < Math.min(n, 6)) {
       this.booms++;
-      const p = apparent(new V(this.x + rand(-1.2, 1.2), rand(1, 2.5), this.z + rand(-2.5, 2.5)));
+      const p = apparent(new V(this.x + rand(-1.2, 1.2), (this.kind === 'heli' ? this.root.position.y - 1 : 0) + rand(1, 2.5), this.z + rand(-2.5, 2.5)));
       G.explode(p, this.booms === 6 ? 7 : 3.5, 0, {});
     }
-    if (this.booms >= 6) {
+    if (this.kind === 'heli') {
+      this.altY = Math.max(0.5, (this.altY ?? 8) - dt * (2 + this.deathT * 6));
+      this.root.position.y = this.altY;
+      this.root.rotation.y += dt * (3 + this.deathT * 2);
+      this.front.rotation.y += dt * 10;
+    } else if (this.booms >= 6) {
       this.root.rotation.x = damp(this.root.rotation.x, -1.2, 2, dt);
       this.root.position.y = damp(this.root.position.y, 1.2, 2, dt);
     }
     this.root.position.x = this.x;
     this.root.position.z = this.z;
-    if (Math.random() < 0.5) G.fx.smoke(apparent(_v.set(this.x, 2, this.z)), 2, 1.2);
+    if (Math.random() < 0.5) G.fx.smoke(apparent(_v.set(this.x, this.root.position.y + 2, this.z)), 2, 1.2);
     if (this.deathT > 5 || this.z > 60) this.remove = true;
   }
 }

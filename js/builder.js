@@ -24,6 +24,8 @@ export const MAT = {
   far: new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }),
   // sem enrolar no tambor (pra coisas que já estão no espaço aparente, ex.: projéteis)
   litFlat: new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }),
+  // armas na mão: material brilhante (reflexo especular no metal e na madeira envernizada)
+  gun: new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 70, specular: 0x8a8a8a }),
   glowFlat: new THREE.MeshBasicMaterial({ vertexColors: true }),
 };
 
@@ -113,11 +115,12 @@ export class Builder {
     return mergeGeos(this[which]);
   }
 
+  // flat = true: sem curvar (projéteis); 'gun' = material brilhante das armas
   build(flat = false) {
     const grp = new THREE.Group();
     grp.userData.meshes = [];
     if (this.lit.length) {
-      const mat = flat ? MAT.litFlat : MAT.lit;
+      const mat = flat === 'gun' ? MAT.gun : flat ? MAT.litFlat : MAT.lit;
       const m = new THREE.Mesh(mergeGeos(this.lit), mat);
       m.userData.baseMat = mat;
       grp.add(m);

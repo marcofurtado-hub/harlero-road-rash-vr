@@ -1,6 +1,6 @@
 // Diretor de ondas: compõe cada onda com orçamento crescente e tipos variados
 import { G, rand, pick, chance, shuffle, weightedPick } from './ctx.js';
-import { TYPES, BOSS_NAMES } from './enemies.js';
+import { TYPES, bossName } from './enemies.js';
 
 const GANGS = [
   'OS ESCORPIÕES', 'CAVEIRAS DE CROMO', 'COIOTES RAIVOSOS', 'FILHOS DO ASFALTO', 'VÍBORAS DO DESERTO',
@@ -42,7 +42,7 @@ export class Waves {
     this.maxC = Math.min(4 + Math.floor(n * 0.8), 14);
     this.interval = Math.max(0.45, 2.1 - n * 0.16);
     if (boss) {
-      const name = BOSS_NAMES[G.enemies.bossCount % BOSS_NAMES.length];
+      const name = bossName(G.enemies.bossCount);
       G.hud.announce(`ONDA ${n}: CHEFÃO!`, `${name} • ${place}`, '#ff3030', 3.5);
     } else {
       const fr = fresh.length ? `NOVO: ${fresh.map((f) => TYPES[f].name.toUpperCase()).join(' + ')}` : pick(GANGS);

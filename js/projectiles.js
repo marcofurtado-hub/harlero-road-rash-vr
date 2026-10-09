@@ -123,8 +123,8 @@ export class Projectiles {
       const b = this.pb[i];
       const sp = b.vel.length();
       _q.setFromUnitVectors(_fz, _v.copy(b.vel).divideScalar(-sp || 1));
-      const w = 0.045 * b.size;
-      _m.compose(b.p, _q, _s.set(w, w, Math.min(1.1, sp * 0.011) * b.size));
+      const w = 0.018 * b.size;
+      _m.compose(b.p, _q, _s.set(w, w, Math.min(0.55, sp * 0.0055) * b.size));
       M.setMatrixAt(i, _m);
       M.setColorAt(i, b.color);
     }

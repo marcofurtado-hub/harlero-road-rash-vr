@@ -179,8 +179,6 @@ export class Player {
     this.speed = 18;
     this.thr = 0;
     this.stats = { maxHp: 100, armor: 0, critMul: 2 };
-    this.sk = {}; // habilidades (id -> nível)
-    this.shieldT = 0;
     this.barThr = 0;
     this.slipT = 0;
     this.boostT = 0;
@@ -197,30 +195,6 @@ export class Player {
     this.guns = [];
     this.cur = -1;
     this.giveWeapon('sawedoff', true);
-  }
-
-  // ------------------------------------------------------------ habilidades (estilo Archero)
-  lvl(id) {
-    return this.sk[id] || 0;
-  }
-  addSkill(id) {
-    const n = (this.sk[id] = (this.sk[id] || 0) + 1);
-    const S = this.stats;
-    if (id === 'heart') {
-      S.maxHp += 25;
-      this.heal(25);
-    } else if (id === 'jacket') S.armor = 1 - Math.pow(0.8, n);
-    else if (id === 'heal') this.heal(9999);
-    else if (id === 'cash') G.score += 2000;
-    return n;
-  }
-  // multiplicador de dano das habilidades (Calibre Grosso + Sangue Quente)
-  dmgMul() {
-    const rage = this.lvl('rage') * 0.25 * (1 - this.hp / this.stats.maxHp);
-    return (1 + 0.25 * this.lvl('dmg')) * (1 + rage);
-  }
-  rateMul() {
-    return 1 + 0.2 * this.lvl('rate');
   }
 
   allHands() {
@@ -422,17 +396,6 @@ export class Player {
   hurt(dmg, from) {
     if (G.state === 'title' || G.state === 'dead') return;
     if (this.invulnT > 0 || dmg <= 0) return;
-    // Escudo Cromado: bloqueia um golpe e recarrega
-    const shl = this.lvl('shield');
-    if (shl && this.shieldT <= 0) {
-      this.shieldT = shl >= 2 ? 5 : 8;
-      this.invulnT = 0.4;
-      this.shieldFlash = 1;
-      G.audio.play('shield');
-      this.pulseAll(0.6, 80);
-      G.fx.text('BLOQUEADO!', _v.set(this.x, 2.1, -3.2), '#60e8ff', 0.45, 0.7);
-      return;
-    }
     const d = dmg * (1 - this.stats.armor);
     this.hp -= d;
     this.invulnT = 0.25; // uma rajada não derruba de uma vez
@@ -695,20 +658,14 @@ export class Player {
 
     // efeitos de vida
     if (this.invulnT > 0) this.invulnT -= dt;
-    if (this.shieldT > 0) {
-      this.shieldT -= dt;
-      if (this.shieldT <= 0 && this.lvl('shield')) G.audio.play('freeze');
-    }
-    this.shieldFlash = damp(this.shieldFlash || 0, 0, 4, realDt);
     this.hurtFlash = damp(this.hurtFlash, 0, 3, realDt);
     const low = this.hp / this.stats.maxHp < 0.3 && G.state !== 'title' && G.state !== 'dead' ? 0.35 + Math.sin(G.time * 6) * 0.15 : 0;
     const fury = G.furyT > 0 ? 0.25 : 0;
     const slow = G.pow && G.pow.slow > 0 ? 0.3 : 0;
     const vi = Math.max(this.hurtFlash, low);
     const u = this.vig.material.uniforms;
-    u.uI.value = Math.max(vi, fury, slow, this.shieldFlash * 0.7);
-    if (this.shieldFlash > vi && this.shieldFlash > 0.1) u.uC.value.setRGB(0.3, 0.85, 1);
-    else if (vi >= Math.max(fury, slow)) u.uC.value.setRGB(0.75, 0, 0);
+    u.uI.value = Math.max(vi, fury, slow);
+    if (vi >= Math.max(fury, slow)) u.uC.value.setRGB(0.75, 0, 0);
     else if (slow > fury) u.uC.value.setRGB(0.2, 0.45, 1);
     else u.uC.value.setRGB(1, 0.35, 0);
     this.vig.visible = this.vig.material.uniforms.uI.value > 0.01;

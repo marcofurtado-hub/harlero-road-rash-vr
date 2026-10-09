@@ -10,9 +10,7 @@ import { Hazards } from './hazards.js';
 import { Projectiles } from './projectiles.js';
 import { Enemies } from './enemies.js';
 import { Waves, isBossWave } from './waves.js';
-import { Gates } from './gates.js';
 import { Crows } from './buddy.js';
-import { buildOffer } from './skills.js';
 import { POW } from './hazards.js';
 import { Cards, drawTarget, drawInfo, drawTitle, drawToggle } from './upgrades.js';
 import { TruckEvent } from './truck.js';
@@ -56,7 +54,6 @@ class Game {
     G.hazards.clear();
     G.proj.clear();
     G.truck.clear();
-    G.gates.clear();
     G.crows.clear();
     G.waves.active = false;
     G.pow.gold = G.pow.boom = G.pow.slow = 0;
@@ -104,7 +101,6 @@ class Game {
     G.furyT = 0;
     this.resetWorld();
     G.cards.hide();
-    G.player.sk = {};
     const hp = G.player.stats.maxHp;
     G.player.hp = hp;
     this.nextWave();
@@ -131,19 +127,10 @@ class Game {
     G.audio.play('clear');
     G.audio.music && G.audio.music.setMode('calm');
     const reward = REWARDS[G.wave - 1] || 'turbo';
-    const wave = G.wave;
-    // caminhão (arma nova) -> portais de habilidade (2 rodadas depois de chefão) -> próxima onda
-    const next = () => this.later(1.2, () => G.state === 'cleared' && this.nextWave());
-    const gates = () => {
-      if (G.state !== 'cleared') return;
-      G.gates.start(buildOffer(wave === 1 ? 'first' : 'normal'), () => {
-        if (!boss || G.state !== 'cleared') return next();
-        G.gates.start(buildOffer('boss'), next, 'RECOMPENSA DO CHEFÃO!');
-      });
-    };
+    // caminhão derruba a arma nova (e mais umas caixas com vida e power-ups) -> próxima onda
     this.later(1.6, () => {
       if (G.state !== 'cleared') return;
-      G.truck.start(reward, () => this.later(1.6, gates));
+      G.truck.start(reward, () => this.later(3, () => G.state === 'cleared' && this.nextWave()), boss ? 4 : 2);
     });
   }
 
@@ -211,13 +198,13 @@ G.onKill = (e, info) => {
   G.kills++;
   G.combo++;
   const P = G.player;
-  G.comboT = 3.5 + 1.5 * P.lvl('combo');
+  G.comboT = 3.5;
   const mult = 1 + 0.1 * (G.combo - 1);
   const sm = speedMult();
   let pts = e.T.score * mult * (info.headshot ? 1.5 : 1) * sm;
   G.score += pts;
   // cada punk derrubado devolve um pouco de vida (+ Vampiro do Asfalto)
-  if (!info.boss) P.heal((info.headshot ? 4 : 2) + 2 * P.lvl('leech'));
+  if (!info.boss) P.heal(info.headshot ? 4 : 2);
   else P.heal(25);
   e.center(_v);
   _v.y += 1.2;
@@ -254,7 +241,7 @@ G.onKill = (e, info) => {
   if (!info.boss) {
     G.dropless = (G.dropless || 0) + 1;
     const base = { punk: 0.06, kamikaze: 0.05 }[e.type] ?? 0.11;
-    if (G.dropless >= 16 || chance(base * (1 + 0.5 * P.lvl('luck')))) {
+    if (G.dropless >= 16 || chance(base)) {
       G.dropless = 0;
       const low = P.hp / P.stats.maxHp;
       const kind = weightedPick(Object.keys(POW), (k) => ({ gold: 1, boom: 1, slow: 0.8, fury: 0.7, health: low < 0.35 ? 1.6 : low < 0.6 ? 0.8 : 0.25, crow: 0.6 })[k]);
@@ -317,7 +304,6 @@ async function boot() {
   G.waves = new Waves();
   G.cards = new Cards(G.player.rig);
   G.truck = new TruckEvent(scene);
-  G.gates = new Gates(scene);
   G.crows = new Crows(G.player.rig);
   G.game = new Game();
   G.furyT = 0;
@@ -351,7 +337,6 @@ async function boot() {
     G.enemies.update(gdt);
     G.proj.update(gdt);
     G.truck.update(gdt);
-    G.gates.update(gdt);
     G.crows.update(gdt);
     G.cards.update(dt, G.player.aimRays());
     G.fx.update(gdt);

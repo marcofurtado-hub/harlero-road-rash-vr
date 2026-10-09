@@ -336,7 +336,7 @@ export class Hazards {
     const P = G.player;
     const speed = G.speed;
     // geração
-    if ((G.state === 'wave' || G.state === 'cleared') && !G.gates.active) {
+    if (G.state === 'wave' || G.state === 'cleared') {
       this.spawnT -= dt;
       if (this.spawnT <= 0) {
         const busy = G.state === 'wave';
@@ -390,7 +390,8 @@ export class Hazards {
       }
       // animação
       if (POW[h.kind]) {
-        h.obj.position.y = 0.9 + Math.sin(h.t * 3) * 0.12;
+        if (h.fall) h.fall = Math.max(0, h.fall - dt * 6); // caindo do caminhão
+        h.obj.position.y = 0.9 + Math.sin(h.t * 3) * 0.12 + (h.fall || 0);
         h.obj.children[0].rotation.y += dt * 2.2;
       } else if ((h.kind === 'car' || h.kind === 'wreck') && (h.hp < h.maxHp * 0.6 || h.burning)) {
         const k = h.burning ? 1 : 1 - h.hp / h.maxHp;

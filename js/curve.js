@@ -3,6 +3,7 @@
 // A renderização mapeia cada vértice pra posição real na curva/morro usando amostras da pista
 // calculadas a cada frame no referencial do jogador.
 import * as THREE from 'three';
+import { skyFog } from './skyfog.js';
 
 const STEP = 5; // metros entre amostras
 const BACK = 40; // amostras começam 40 m atrás
@@ -19,7 +20,7 @@ const S = CURVE.uTrk.value; // (x, y, z, heading) no referencial do jogador
 // o chão afunda num vale (com rio no fundo) onde passa a ponte alta
 const CHASM_V = `
 float chK = smoothstep( uChasm.x - 8.0, uChasm.x + 24.0, dd ) * ( 1.0 - smoothstep( uChasm.y - 24.0, uChasm.y + 8.0, dd ) );
-chK *= 1.0 - 0.72 * smoothstep( 32.0, 105.0, abs( bwp.x ) );
+chK *= mix( 1.0 - 0.72 * smoothstep( 32.0, 105.0, abs( bwp.x ) ), 1.0, uChasm.w );
 bwp.y -= uChasm.z * chK;
 vCh = chK;
 vChX = bwp.x;
@@ -28,6 +29,7 @@ vChX = bwp.x;
 export function curveMaterial(m, opts = {}) {
   const ground = !!opts.ground;
   m.onBeforeCompile = (shader) => {
+    skyFog(shader);
     shader.uniforms.uTrk = CURVE.uTrk;
     if (ground) shader.uniforms.uChasm = CURVE.uChasm;
     shader.vertexShader =
@@ -57,12 +59,14 @@ gl_Position = projectionMatrix * mvPosition;`
     if (ground) {
       // paredões mais escuros e um rio no fundo do vale
       shader.fragmentShader =
-        'varying float vCh;\nvarying float vChX;\n' +
+        'uniform vec4 uChasm;\nvarying float vCh;\nvarying float vChX;\n' +
         shader.fragmentShader.replace(
           '#include <map_fragment>',
           `#include <map_fragment>
 float rv = smoothstep( 0.82, 0.97, vCh ) * ( 1.0 - smoothstep( 16.0, 26.0, abs( vChX ) ) );
-diffuseColor.rgb = mix( diffuseColor.rgb * mix( 1.0, 0.55, smoothstep( 0.05, 0.6, vCh ) ), vec3( 0.10, 0.32, 0.52 ), rv );`
+float bay = uChasm.w * smoothstep( 0.55, 0.85, vCh );
+vec3 water = mix( vec3( 0.10, 0.32, 0.52 ), vec3( 0.16, 0.42, 0.62 ), uChasm.w );
+diffuseColor.rgb = mix( diffuseColor.rgb * mix( 1.0, 0.55, smoothstep( 0.05, 0.6, vCh ) ), water, max( rv, bay ) );`
         );
     }
   };
@@ -72,7 +76,8 @@ diffuseColor.rgb = mix( diffuseColor.rgb * mix( 1.0, 0.55, smoothstep( 0.05, 0.6
 
 // ------------------------------------------------------------------ gerador da pista (absoluto)
 // trechos especiais (comprimentos fixos: a geometria é construída uma vez só)
-export const FEAT_LEN = { tunnel: 230, bridge: 270 };
+export const FEAT_LEN = { tunnel: 230, bridge: 270, gg: 680 };
+export const SPAN_GG = 220; // vão entre as torres da Golden Gate
 const ease = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : (1 - Math.cos(Math.PI * t)) / 2);
 const sstep = (a, b, x) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -119,7 +124,13 @@ class TrackGen {
       if (kind === this.lastKind && kind !== 'none') kind = 'none';
       this.lastKind = kind;
       let len;
-      if (kind === 'tunnel' || kind === 'bridge') {
+      if (kind === 'gg') {
+        // Golden Gate: começa 20 m antes de uma torre (as torres ficam em s ≡ -35 mod 220) e tem 3 vãos
+        let a = s0;
+        while ((((a + 35 + 20) % SPAN_GG) + SPAN_GG) % SPAN_GG > 1) a += 1;
+        len = FEAT_LEN.gg + (a - s0);
+        this.features.push({ kind, s0: a, s1: a + FEAT_LEN.gg });
+      } else if (kind === 'tunnel' || kind === 'bridge') {
         len = FEAT_LEN[kind];
         this.features.push({ kind, s0, s1: s0 + len });
       } else if (kind === 'mega') {
@@ -150,7 +161,7 @@ class TrackGen {
   flatAt(s) {
     let m = 0;
     for (const f of this.features) {
-      if ((f.kind !== 'tunnel' && f.kind !== 'bridge') || s < f.s0 - 60 || s > f.s1 + 60) continue;
+      if ((f.kind !== 'tunnel' && f.kind !== 'bridge' && f.kind !== 'gg') || s < f.s0 - 60 || s > f.s1 + 60) continue;
       m = Math.max(m, sstep(f.s0 - 55, f.s0 - 5, s) * (1 - sstep(f.s1 + 5, f.s1 + 55, s)));
     }
     return m;
@@ -219,7 +230,7 @@ class TrackGen {
   blocked(s, ax) {
     for (const f of this.features) {
       if (f.kind === 'tunnel' && s > f.s0 - 12 && s < f.s1 + 12 && ax < 48) return true;
-      if (f.kind === 'bridge' && s > f.s0 - 6 && s < f.s1 + 6) return true;
+      if ((f.kind === 'bridge' || f.kind === 'gg') && s > f.s0 - 6 && s < f.s1 + 6) return true;
     }
     return false;
   }
@@ -254,9 +265,10 @@ export function updateTrack(dist) {
     }
     const k = Math.min(1, Math.max(0, (dist - f.s0 + 2) / 14)) * Math.min(1, Math.max(0, (f.s1 - dist + 2) / 14));
     if (f.kind === 'tunnel') tun = Math.max(tun, k);
-    else if (f.kind === 'bridge') {
+    else if (f.kind === 'bridge' || f.kind === 'gg') {
       bri = Math.max(bri, k);
-      if (f.s0 - dist < 900 && f.s1 - dist > -200) ch.set(f.s0 - dist, f.s1 - dist, 80, 0);
+      // desfiladeiro com rio (ponte alta) ou baía aberta (Golden Gate)
+      if (f.s0 - dist < 900 && f.s1 - dist > -200) ch.set(f.s0 - dist, f.s1 - dist, f.kind === 'gg' ? 30 : 80, f.kind === 'gg' ? 1 : 0);
     }
   }
   TRACK_STATE.tunnel = tun;

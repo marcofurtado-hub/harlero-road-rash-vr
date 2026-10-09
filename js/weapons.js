@@ -9,11 +9,11 @@ import { groundY } from './curve.js';
 // bspeed/blife = balas visíveis (como os ovos do Chicken Rancher): velocidade (m/s) e vida (s)
 // kick = coice estilo rancho (vai a 1 e volta linear em ~0.1 s); spread = espalhamento "cúbico" do rancho
 export const WEAPONS = {
-  sawedoff: { name: 'Escopeta Cano Duplo', tier: 1, icon: '💥', dmg: 13, pellets: 14, rate: 2.5, spread: 0.2, bspeed: 62, blife: 0.75, bsize: 0.85, sfx: 'shotgun', kick: 1.25, haptic: [0.95, 130], tracer: 0xffe860, proc: 0.3, desc: 'Dois canos serrados. Resolve tudo de perto.' },
+  sawedoff: { name: 'Escopeta Cano Duplo', tier: 1, icon: '💥', dmg: 18, pellets: 10, rate: 2.5, spread: 0.2, bspeed: 62, blife: 0.75, bsize: 0.85, sfx: 'shotgun', kick: 1.25, haptic: [0.95, 130], tracer: 0xffe860, proc: 0.3, desc: 'Dois canos serrados. Resolve tudo de perto.' },
   magnum: { name: 'Magnum .50', tier: 2, icon: '🌟', dmg: 110, rate: 2.8, spread: 0.006, bspeed: 120, blife: 1.6, bsize: 1.3, pierce: 2, sfx: 'magnum', kick: 1.3, haptic: [0.8, 70], tracer: 0xffd040, proc: 1, desc: 'Banhada a ouro. Atravessa 3 punks.' },
   tommy: { name: 'Metralhadora', tier: 3, icon: '🔫', dmg: 20, rate: 14, auto: true, spread: 0.035, bspeed: 75, blife: 1.4, bsize: 0.95, sfx: 'tommy', kick: 0.45, haptic: [0.35, 30], tracer: 0xff9a40, proc: 0.45, desc: 'Segura o gatilho e varre a estrada.' },
   bazooka: { name: 'Bazuca', tier: 4, icon: '🚀', dmg: 230, splash: 6, rate: 1.6, spread: 0.004, projectile: true, straight: true, pspeed: 40, range: 220, sfx: 'bazooka', kick: 1.4, haptic: [1, 120], tracer: 0xffa040, proc: 1, desc: 'Foguete em linha reta. Explode grupos inteiros.' },
-  autoshotgun: { name: 'Escopeta Automática', tier: 5, icon: '💣', dmg: 13, pellets: 10, rate: 5, auto: true, spread: 0.18, bspeed: 62, blife: 0.75, bsize: 0.85, sfx: 'shotgun', kick: 0.9, haptic: [0.85, 90], tracer: 0xffe860, proc: 0.22, desc: 'Chumbo grosso em rajada.' },
+  autoshotgun: { name: 'Escopeta Automática', tier: 5, icon: '💣', dmg: 16, pellets: 8, rate: 5, auto: true, spread: 0.18, bspeed: 62, blife: 0.75, bsize: 0.85, sfx: 'shotgun', kick: 0.9, haptic: [0.85, 90], tracer: 0xffe860, proc: 0.22, desc: 'Chumbo grosso em rajada.' },
   gatling: { name: 'Mini-Gatling', tier: 6, icon: '⚙️', dmg: 18, rate: 20, auto: true, spread: 0.03, bspeed: 80, blife: 1.3, bsize: 0.95, spinner: true, sfx: 'gatling', kick: 0, haptic: [0.35, 30], tracer: 0xff8030, proc: 0.22, desc: '20 tiros por segundo. Os 6 canos giram.' },
   homing: { name: 'Foguetes Teleguiados', tier: 7, icon: '🎯', dmg: 95, splash: 3.6, rate: 1.15, homing: true, burst: 3, spread: 0, range: 200, sfx: 'homing', kick: 1, haptic: [0.9, 90], tracer: 0xffa040, proc: 1, desc: 'Rajada de 3 mísseis que perseguem os punks.' },
   flyingv: { name: 'Flying V Laser', tier: 8, icon: '🎸', dmg: 240, beam: true, rate: 1, auto: true, spread: 0, range: 170, pierce: 99, sfx: 'laser', kick: 0, haptic: [0.35, 30], tracer: 0x40f0ff, proc: 0.35, desc: 'Um solo de guitarra que derrete tudo.' },
@@ -88,47 +88,15 @@ export function collectHits(o, d, max, out, extra = 0) {
   return out;
 }
 
-// ------------------------------------------------------------------ multi-tiro universal
-// Bala Dupla = cópias paralelas (16 cm); Leque = +2 cópias em diagonal por nível (±14°, ±28°)
-const UPV = new THREE.Vector3(0, 1, 0);
-const _r = new THREE.Vector3();
-const _u = new THREE.Vector3();
-export function volleyDirs(dir) {
-  const P = G.player;
-  const out = [];
-  _r.crossVectors(dir, UP);
-  if (_r.lengthSq() < 1e-6) _r.set(1, 0, 0);
-  _r.normalize();
-  _u.crossVectors(_r, dir).normalize();
-  const n = 1 + P.lvl('double');
-  for (let k = 0; k < n; k++) out.push({ d: dir.clone(), off: _r.clone().multiplyScalar((k - (n - 1) / 2) * 0.16) });
-  for (let k = 1; k <= P.lvl('fan'); k++) for (const s of [-1, 1]) out.push({ d: dir.clone().applyAxisAngle(_u, s * k * 0.24), off: new THREE.Vector3() });
-  return out;
-}
-
-// ------------------------------------------------------------------ dano central + efeitos de impacto
-// fx = true só no tiro direto do jogador; efeitos secundários (choque, ricochete, queimadura) passam
-// fx = false e assim nunca geram outro efeito (sem recursão infinita)
+// ------------------------------------------------------------------ dano central
+// fx = true só no tiro direto do jogador (efeitos secundários, como o choque da tesla, passam false)
 const _up = new THREE.Vector3(0, 0.55, 0);
-let critTextT = 0;
 export function dealDamage(h, dmg, pt, dir, proc = 1, fx = true) {
-  const P = G.player;
-  const obj = h.obj;
-  const isE = !!obj.spheres;
-  let crit = false;
-  if (isE && fx && P.lvl('crit') && Math.random() < 0.15 * P.lvl('crit')) {
-    dmg *= 2;
-    crit = true;
-  }
-  const res = obj.takeHit(dmg, h.part, pt, dir) || {};
+  const res = h.obj.takeHit(dmg, h.part, pt, dir) || {};
   if (!res.enemy) return res;
   G.hitMark = 0.12;
-  if (crit && G.time - critTextT > 0.22) {
-    critTextT = G.time;
-    G.fx.text('CRÍTICO!', _v.copy(pt).add(_up), '#ff5050', 0.32, 0.6);
-    G.audio.play('crit');
-  }
-  if (fx) impactFx(obj, dmg, pt, proc);
+  // power-up Bala Explosiva: acerto direto vira mini-explosão
+  if (fx && G.pow.boom > 0 && Math.random() < proc) G.explode(pt.clone(), 2.4, dmg * 0.5 + 22, { small: true });
   return res;
 }
 
@@ -147,60 +115,13 @@ function nearestEnemies(p, r, skip, n) {
   return c.slice(0, n);
 }
 
-function impactFx(e, dmg, pt, proc) {
-  const P = G.player;
-  if (!e.dying) {
-    const fire = P.lvl('fire');
-    if (fire) {
-      if (!(e.burnT > 0)) G.audio.play('burn', pt);
-      e.burnT = 3;
-      e.burnDps = Math.max(e.burnDps || 0, dmg * 0.2 * fire);
-    }
-    const ice = P.lvl('ice');
-    if (ice) {
-      if (!(e.slowT > 0)) G.audio.play('freeze', pt);
-      e.slowT = 2.5;
-      e.slowMul = ice >= 2 ? 0.4 : 0.6;
-    }
-  }
-  const boom = P.lvl('boom');
-  if ((G.pow.boom > 0 && Math.random() < proc) || (boom && Math.random() < 0.25 * boom * proc)) {
-    G.explode(pt.clone(), 2.2 + 0.3 * boom, dmg * 0.5 + 22, { small: true });
-  }
-  const shock = P.lvl('shock');
-  if (shock && Math.random() < proc && G.time - (e.shockCD || -9) > 0.3) {
-    e.shockCD = G.time;
-    const skip = new Set([e]);
-    for (const c of nearestEnemies(pt, 8, skip, shock >= 2 ? 3 : 2)) {
-      const cp = enemyPos(c.o, new THREE.Vector3());
-      G.fx.bolt(pt, cp, 0xa0d0ff, 0.25, 0.1, 0.035);
-      dealDamage({ obj: c.o, part: 'zap' }, dmg * 0.35, cp, null, 0, false);
-    }
-    G.audio.play('zap', pt);
-  }
-  const ric = P.lvl('ricochet');
-  if (ric && Math.random() < proc) {
-    const skip = new Set([e]);
-    let from = pt.clone();
-    for (let i = 0; i < ric; i++) {
-      const c = nearestEnemies(from, 14, skip, 1)[0];
-      if (!c) break;
-      skip.add(c.o);
-      const cp = enemyPos(c.o, new THREE.Vector3());
-      G.fx.tracer(from, cp, 0xffd040, 0.1, 1.4);
-      dealDamage({ obj: c.o, part: 'body' }, dmg * 0.7, cp, null, 0, false);
-      from = cp;
-    }
-  }
-}
-
 // cascata do raio tesla: salta pros 3 vizinhos mais próximos, até 3 gerações (55% / 30% / 17%)
 function teslaCascade(first, pt, base) {
   const hit = new Set([first]);
   let frontier = [pt.clone()];
   let dmg = base;
   let total = 0;
-  const gens = 3 + G.player.lvl('ricochet');
+  const gens = 3;
   for (let gen = 0; gen < gens && frontier.length && total < 10; gen++) {
     dmg *= 0.55;
     const next = [];
@@ -296,10 +217,10 @@ export class Gun {
     const fury = G.furyT > 0;
     const gold = G.pow && G.pow.gold > 0;
     return {
-      dmg: d.dmg * (1 + 0.25 * L) * (P ? P.dmgMul() : 1) * (fury ? 1.75 : 1) * (gold ? 3 : 1),
-      rate: d.rate * (1 + 0.12 * L) * (P ? P.rateMul() : 1) * (fury ? 1.35 : 1),
+      dmg: d.dmg * (1 + 0.25 * L) * (fury ? 1.75 : 1) * (gold ? 3 : 1),
+      rate: d.rate * (1 + 0.12 * L) * (fury ? 1.35 : 1),
       spread: d.spread * Math.pow(0.85, L),
-      pierce: (d.pierce || 0) + (P ? P.lvl('pierce') : 0),
+      pierce: d.pierce || 0,
       pellets: d.pellets || 1,
       range: d.range || 120,
       auto: !!d.auto,
@@ -366,29 +287,19 @@ export class Gun {
   fire(S, aimO, aimD) {
     const d = this.def;
     const { from, dir, origin } = this.aim(S, aimO, aimD);
-    const vol = volleyDirs(dir);
-    if (d.homing) {
-      // só o 1º míssil da rajada é replicado pelas habilidades
-      G.proj.missiles(from, dir, S, d.burst + vol.length - 1);
-    } else if (d.tesla) {
-      const n = Math.min(vol.length, 3);
-      for (let i = 0; i < n; i++) this.fireTesla(_v.copy(origin).add(vol[i].off), vol[i].d, S, from);
-    } else {
-      // balas de verdade, como os ovos do rancho (escopeta: menos chumbos por cópia)
-      const per = S.pellets > 1 ? Math.max(3, Math.round(S.pellets / Math.sqrt(vol.length))) : 1;
+    if (d.homing) G.proj.missiles(from, dir, S, d.burst);
+    else if (d.tesla) this.fireTesla(origin, dir, S, from);
+    else {
+      // balas de verdade, como os ovos do rancho
       const dd = new THREE.Vector3();
       const gold = G.pow.gold > 0;
-      const big = G.player.lvl('big'); // Bala Grossa: maior e mais rápida (como o Ovo Gigante do rancho)
-      for (const v of vol) {
-        const f = from.clone().add(v.off);
-        for (let p = 0; p < per; p++) {
-          spreadDir(v.d, S.spread, dd);
-          if (d.projectile) G.proj.grenade(f, dd, S);
-          else
-            G.proj.bullet(f, dd.clone().multiplyScalar(d.bspeed * (1 + 0.1 * big) * (S.pellets > 1 ? 0.92 + Math.random() * 0.16 : 1)), {
-              dmg: S.dmg, pierce: S.pierce, life: d.blife, size: d.bsize * (gold ? 1.4 : 1) * (1 + 0.3 * big), color: gold ? 0xffd030 : d.tracer, proc: d.proc, extra: 0.08 * big,
-            });
-        }
+      for (let p = 0; p < S.pellets; p++) {
+        spreadDir(dir, S.spread, dd);
+        if (d.projectile) G.proj.grenade(from, dd, S);
+        else
+          G.proj.bullet(from, dd.clone().multiplyScalar(d.bspeed * (S.pellets > 1 ? 0.92 + Math.random() * 0.16 : 1)), {
+            dmg: S.dmg, pierce: S.pierce, life: d.blife, size: d.bsize * (gold ? 1.3 : 1), color: gold ? 0xffd030 : d.tracer, proc: d.proc,
+          });
       }
     }
     G.fx.muzzle(from, dir, d.tesla ? 'cyan' : G.pow.gold > 0 ? 'gold' : 'fire');
@@ -430,7 +341,7 @@ export class Gun {
       G.audio.laserStart();
     }
     const { from, dir, origin } = this.aim(S, aimO, aimD);
-    const vol = volleyDirs(dir).slice(0, 3);
+    const vol = [{ d: dir, off: new THREE.Vector3() }];
     this.beamTick = (this.beamTick || 0) - dt;
     const tick = this.beamTick <= 0;
     if (tick) this.beamTick = 0.06;

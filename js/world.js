@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { G, rand, pick, damp, chance, clamp } from './ctx.js';
 import { curveMaterial, updateTrack, TRACK, TRACK_STATE } from './curve.js';
 import { Features } from './features.js';
+import { SKYFOG } from './skyfog.js';
 import { MAT } from './builder.js';
 import * as Models from './models.js';
 import * as SC from './scenery.js';
@@ -23,7 +24,7 @@ export const THEMES = [
   { id: 'canyon', name: 'GRAND CANYON', top: 0x1e4a9a, mid: 0x5a9ad8, hor: 0xf2c08a, ground: 0xb8643a, groundY: 0, fog: [90, 320], sunY: 260, sunS: 0.6, clouds: 0.8, back: 'mesas', light: [0xfff0dc, 0x8a4a2a, 0xffffff], curvy: 1.0, hilly: 0.9, feat: { none: 0.5, tunnel: 1, bridge: 1.6, descent: 1.1, climb: 0.7, mega: 1.2, ramp: 1.2 } },
   { id: 'deathvalley', name: 'DEATH VALLEY', top: 0x3a7ac8, mid: 0x9ac8f0, hor: 0xf8ecd8, ground: 0xe8dcc0, groundY: 0, fog: [70, 280], sunY: 330, sunS: 0.7, clouds: 0.2, back: 'mesas', light: [0xffffff, 0xa89070, 0xfff4e0], curvy: 0.3, hilly: 0.35, feat: { none: 0.8, tunnel: 0.5, bridge: 0.5, descent: 1.4, climb: 1, mega: 1.3, ramp: 1.6 } },
   { id: 'redwood', name: 'FLORESTA DE REDWOOD', top: 0x2a5a7a, mid: 0x7aaab8, hor: 0xbcd8cc, ground: 0x3a5a2a, groundY: 0, fog: [35, 190], sunY: 240, sunS: 0.5, clouds: 0.6, back: 'hills', light: [0xd8f0e0, 0x2a3a20, 0xfff8e0], curvy: 1.1, hilly: 0.8, feat: { none: 0.7, tunnel: 1.3, bridge: 1, descent: 1, climb: 0.8, mega: 1, ramp: 1 } },
-  { id: 'goldengate', name: 'GOLDEN GATE • SAN FRANCISCO', top: 0x2a6ac8, mid: 0x78b4ec, hor: 0xd8ecf8, ground: 0x2a6a9a, groundY: -30, fog: [90, 340], sunY: 300, sunS: 0.6, clouds: 1, back: 'city', light: [0xffffff, 0x2a4a6a, 0xfff4e0], curvy: 0.15, hilly: 0.1, feat: { none: 1, ramp: 0.7 } },
+  { id: 'goldengate', name: 'GOLDEN GATE • SAN FRANCISCO', top: 0x2a6ac8, mid: 0x78b4ec, hor: 0xd8ecf8, ground: 0x6a9a48, groundY: 0, fog: [90, 340], sunY: 300, sunS: 0.6, clouds: 1, back: 'city', light: [0xffffff, 0x2a4a6a, 0xfff4e0], curvy: 0.15, hilly: 0.1, feat: { gg: 3, none: 0.35, ramp: 0.4 } },
   { id: 'iowa', name: 'FAZENDAS DE IOWA', top: 0x2a6ad0, mid: 0x80b8f0, hor: 0xe0f0ff, ground: 0x7a9a3a, groundY: 0, fog: [90, 330], sunY: 320, sunS: 0.65, clouds: 1, back: 'hills', light: [0xffffff, 0x4a6a2a, 0xfff0d0], curvy: 0.4, hilly: 1.1, feat: { none: 0.8, tunnel: 0.3, bridge: 0.9, descent: 1, climb: 1.1, mega: 0.8, ramp: 1.5 } },
   { id: 'chicago', name: 'CHICAGO', top: 0x3a5a8a, mid: 0x8aa0c0, hor: 0xd0d8e0, ground: 0x6a6a6e, groundY: 0, fog: [80, 300], sunY: 220, sunS: 0.55, clouds: 0.9, back: 'city', light: [0xf0f4ff, 0x4a4a50, 0xfff0e0], curvy: 0.35, hilly: 0.15, feat: { none: 1, tunnel: 1.5, descent: 0.5, climb: 0.4, mega: 0.4, ramp: 1.2 } },
   { id: 'dc', name: 'WASHINGTON D.C.', top: 0x2a5ab8, mid: 0x88b8ec, hor: 0xf0e8f0, ground: 0x5a8a3a, groundY: 0, fog: [90, 330], sunY: 280, sunS: 0.6, clouds: 0.8, back: 'city', light: [0xffffff, 0x4a6a3a, 0xfff4e8], curvy: 0.35, hilly: 0.25, feat: { none: 1, tunnel: 1, descent: 0.6, climb: 0.5, mega: 0.5, ramp: 1.2 } },
@@ -193,7 +194,9 @@ class ThemePool {
     for (const it of this.items) {
       _e.set(it.rx, it.ry, 0, 'YXZ');
       _q.setFromEuler(_e);
-      const k = it.on && !TRACK.blocked(dist - it.z, Math.abs(it.x)) ? it.s : 0;
+      const sa = dist - it.z;
+      const show = this.o.inFeat ? TRACK.featureAt(sa, 2)?.kind === this.o.inFeat : !TRACK.blocked(sa, Math.abs(it.x));
+      const k = it.on && show ? it.s : 0;
       m.compose(_p.set(it.x, it.y, it.z), _q, _sc.set(k * it.sx, k * it.sy, k));
       this.mesh.setMatrixAt(it.i, m);
     }
@@ -306,6 +309,7 @@ export class World {
     toSRGB(a.ground, this.groundMat.color);
     this.ground.position.y = a.groundY;
     this.sun.position.y = a.sunY;
+    this.skyMat.uniforms.sunDir.value.set(0, a.sunY, -1000).normalize(); // brilho do céu centrado no sol
     this.sun.scale.setScalar(a.sunS);
     for (const c of this.clouds.children) c.material.opacity = a.clouds * 0.9;
     this.clouds.visible = a.clouds > 0.02;
@@ -328,10 +332,11 @@ export class World {
       side: THREE.BackSide,
       depthWrite: false,
       fog: false,
+      // as mesmas cores alimentam a neblina (skyfog.js): o que está longe some na cor exata do céu
       uniforms: {
-        top: { value: new THREE.Color() },
-        mid: { value: new THREE.Color() },
-        hor: { value: new THREE.Color() },
+        top: SKYFOG.uSkyTop,
+        mid: SKYFOG.uSkyMid,
+        hor: SKYFOG.uSkyHor,
         sunDir: { value: new THREE.Vector3(0, 0.07, -1).normalize() },
       },
       vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
@@ -425,22 +430,22 @@ export class World {
     this.pools = [
       // deserto / Rota 66
       P(Models.cactusGeo(), 40, { themes: T('arizona', 'canyon'), set: (it) => { it.x = side() * rand(12, 75); it.ry = rand(0, 6.28); it.s = rand(0.7, 1.5); } }),
-      P(Models.rockGeo(), 34, { themes: DESERT, set: (it) => { it.x = side() * rand(11, 95); it.ry = rand(0, 6.28); it.s = rand(0.5, 2.6); it.sy = rand(0.6, 1.4); } }),
-      P(Models.bushGeo(), 40, { themes: T('arizona', 'deathvalley', 'canyon', 'iowa'), set: (it) => { it.x = side() * rand(10, 55); it.ry = rand(0, 6.28); it.s = rand(0.6, 1.4); } }),
+      P(Models.rockGeo(), 34, { themes: [...DESERT, 'goldengate'], set: (it) => { it.x = side() * rand(11, 95); it.ry = rand(0, 6.28); it.s = rand(0.5, 2.6); it.sy = rand(0.6, 1.4); } }),
+      P(Models.bushGeo(), 40, { themes: T('arizona', 'deathvalley', 'canyon', 'iowa', 'goldengate'), set: (it) => { it.x = side() * rand(10, 55); it.ry = rand(0, 6.28); it.s = rand(0.6, 1.4); } }),
       P(Models.poleGeo(), 9, { themes: T('arizona', 'deathvalley', 'iowa'), spacing: 40, set: (it) => { it.x = -12.5; it.ry = 0; } }),
       P(Models.fencePostGeo(), 50, { themes: T('arizona', 'iowa', 'deathvalley'), spacing: 6.8, set: (it) => { it.x = 15.5; } }),
       P(Models.mesaGeo(), 10, { themes: DESERT, set: (it) => { it.x = side() * rand(90, 170); it.ry = rand(0, 6.28); it.s = rand(0.6, 1.4); it.sy = rand(0.5, 1.3); } }),
       // Grand Canyon: paredões dos dois lados
       ...[-1, 1].map((sd) => P(SC.canyonWallGeo(), 29, { themes: T('canyon'), spacing: 12, set: (it) => { it.x = sd * rand(24, 32); it.ry = sd > 0 ? 0 : Math.PI; it.s = 1; it.sy = rand(0.8, 1.5); it.sx = rand(0.9, 1.3); } })),
       // Redwood
-      P(SC.redwoodGeo(), 70, { themes: T('redwood'), set: (it) => { it.x = side() * rand(11, 70); it.ry = rand(0, 6.28); it.s = rand(0.8, 1.4); } }),
+      P(SC.redwoodGeo(), 70, { themes: T('redwood', 'goldengate'), set: (it) => { it.x = side() * rand(11, 70); it.ry = rand(0, 6.28); it.s = rand(0.8, 1.4); } }),
       P(SC.fernGeo(), 60, { themes: T('redwood'), set: (it) => { it.x = side() * rand(9.5, 30); it.ry = rand(0, 6.28); it.s = rand(0.8, 1.6); } }),
       // Golden Gate: ponte suspensa
-      P(SC.bridgeTowerGeo(), 2, { themes: T('goldengate'), spacing: SPAN_BRIDGE, set: (it) => { it.x = 0; } }),
-      ...[-1, 1].map((sd) => P(SC.cableGeo(), 58, { themes: T('goldengate'), spacing: 6, set: (it, sa) => { it.x = sd * 11.5; it.y = cableY(sa); it.rx = Math.atan(cableSlope(sa)); } })),
-      ...[-1, 1].map((sd) => P(SC.suspenderGeo(), 58, { themes: T('goldengate'), spacing: 6, set: (it, sa) => { it.x = sd * 11.5; it.y = 1.1; it.sy = Math.max(0.1, cableY(sa) - 1.1); } })),
-      ...[-1, 1].map((sd) => P(SC.railGeo(), 86, { themes: T('goldengate'), spacing: 4, set: (it) => { it.x = sd * 9.7; } })),
-      P(SC.deckGeo(), 43, { themes: T('goldengate'), spacing: 8, set: (it) => { it.x = 0; } }),
+      P(SC.bridgeTowerGeo(), 2, { themes: T('goldengate'), inFeat: 'gg', spacing: SPAN_BRIDGE, set: (it) => { it.x = 0; } }),
+      ...[-1, 1].map((sd) => P(SC.cableGeo(), 58, { themes: T('goldengate'), inFeat: 'gg', spacing: 6, set: (it, sa) => { it.x = sd * 11.5; it.y = cableY(sa); it.rx = Math.atan(cableSlope(sa)); } })),
+      ...[-1, 1].map((sd) => P(SC.suspenderGeo(), 58, { themes: T('goldengate'), inFeat: 'gg', spacing: 6, set: (it, sa) => { it.x = sd * 11.5; it.y = 1.1; it.sy = Math.max(0.1, cableY(sa) - 1.1); } })),
+      ...[-1, 1].map((sd) => P(SC.railGeo(), 86, { themes: T('goldengate'), inFeat: 'gg', spacing: 4, set: (it) => { it.x = sd * 9.7; } })),
+      P(SC.deckGeo(), 43, { themes: T('goldengate'), inFeat: 'gg', spacing: 8, set: (it) => { it.x = 0; } }),
       // Iowa
       P(SC.cornGeo(), 260, { themes: T('iowa'), set: (it) => { it.x = side() * rand(17, 60); it.ry = rand(0, 6.28); it.s = rand(0.9, 1.2); } }),
       P(SC.barnGeo(), 5, { themes: T('iowa'), set: (it) => { it.x = side() * rand(35, 80); it.ry = rand(-0.5, 0.5) + (Math.random() < 0.5 ? 0 : Math.PI / 2); } }),
@@ -567,6 +572,9 @@ export class World {
     if (G.lights) {
       const h = TRACK_STATE.heading;
       G.lights.dir.position.set(-0.4 * Math.cos(h) + 0.7 * Math.sin(h), 1, 0.7 * Math.cos(h) + 0.4 * Math.sin(h));
+      // brilho do sol na neblina acompanha o céu girando com a curva
+      const sd = this.skyMat.uniforms.sunDir.value;
+      SKYFOG.uSkySun.value.set(sd.x * Math.cos(h) + sd.z * Math.sin(h), sd.y, -sd.x * Math.sin(h) + sd.z * Math.cos(h));
       // dentro do túnel o mundo escurece (só as luminárias de sódio iluminam)
       const tk = TRACK_STATE.tunnel;
       G.lights.hemi.intensity = 2.0 * (1 - 0.64 * tk);

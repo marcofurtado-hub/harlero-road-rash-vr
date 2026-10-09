@@ -19,6 +19,7 @@ export const POW = {
   slow: { icon: '⏳', color: 0x3a70ff, ring: 0x60a0ff, name: 'CÂMERA LENTA!', sub: 'punks e balas a 35% por 7 s' },
   health: { icon: '❤️', color: 0x2aa84a, ring: 0x40ff60, name: '+35 VIDA', sub: '' },
   fury: { icon: '🎸', color: 0xb01020, ring: 0xff3030, name: 'FÚRIA DO ROCK!', sub: 'dano e cadência turbinados' },
+  crow: { icon: '🐦', color: 0x2a2a34, ring: 0xc070ff, name: 'CORVO DE ALUGUEL!', sub: 'um corvo ajuda por 8 s' },
 };
 const EMOJI = '"Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",sans-serif';
 const iconMats = {};
@@ -173,7 +174,8 @@ export class Hazards {
       case 'fury':
       case 'gold':
       case 'boom':
-      case 'slow': {
+      case 'slow':
+      case 'crow': {
         obj = new THREE.Group();
         const crate = Models.powCrate(POW[kind].color);
         crate.scale.setScalar(0.8);
@@ -294,7 +296,8 @@ export class Hazards {
     else if (h.kind === 'fury') {
       G.furyT = 10;
       if (G.audio.music) G.audio.music.lead = true;
-    } else G.pow[h.kind] = h.kind === 'slow' ? 7 : 10;
+    } else if (h.kind === 'crow') G.crows.summon();
+    else G.pow[h.kind] = h.kind === 'slow' ? 7 : 10;
     G.hud.announce(def.name, def.sub, '#' + def.ring.toString(16).padStart(6, '0'), 1.8);
     P.pulseAll(0.6, 120);
   }
@@ -401,7 +404,7 @@ export class Hazards {
       }
       // manchas: óleo escorrega enquanto você passa por cima; turbo dispara uma vez
       if (h.decal) {
-        if (Math.abs(h.z) < h.hl && Math.abs(h.x - P.x) < h.hw + 0.2) {
+        if (!P.air && Math.abs(h.z) < h.hl && Math.abs(h.x - P.x) < h.hw + 0.2) {
           if (h.kind === 'oil') P.slip(h.x);
           else if (!h.used) {
             h.used = true;
@@ -410,7 +413,7 @@ export class Hazards {
         }
         if (h.kind === 'oil') {
           for (const e of G.enemies.list) {
-            if (e.dying || e.isBoss || h.burned.has(e)) continue;
+            if (e.dying || e.isBoss || e.T.alt || h.burned.has(e)) continue;
             if (Math.abs(e.z - h.z) < h.hl && Math.abs(e.x - h.x) < h.hw) {
               h.burned.add(e);
               if (chance(0.45)) {
@@ -422,14 +425,14 @@ export class Hazards {
         }
       }
       // colisão com o jogador
-      else if (!h.dead && !h.hitP && !h.vel && h.z > -1.1 && h.z < 1.1 && Math.abs(h.x - P.x) < h.hw + 0.35) {
+      else if (!h.dead && !h.hitP && !h.vel && P.jumpY + P.rampY < (POW[h.kind] ? 2.2 : 0.9) && h.z > -1.1 && h.z < 1.1 && Math.abs(h.x - P.x) < h.hw + 0.35) {
         h.hitP = true;
         this.onPlayer(h);
       }
       // colisão com inimigos
       if (!h.dead && (h.kind === 'barrel' || h.kind === 'wreck' || h.kind === 'car' || h.kind === 'fire')) {
         for (const e of G.enemies.list) {
-          if (e.dying || e.isBoss) continue;
+          if (e.dying || e.isBoss || e.T.alt) continue;
           if (Math.abs(e.z - h.z) < 1.3 && Math.abs(e.x - h.x) < h.hw + 0.45) {
             if (h.kind === 'barrel') this.explodeBarrel(h, false);
             else if (h.kind === 'wreck' || h.kind === 'car') {
@@ -481,6 +484,7 @@ export class Hazards {
       case 'gold':
       case 'boom':
       case 'slow':
+      case 'crow':
         this.collect(h);
         break;
       case 'fire':

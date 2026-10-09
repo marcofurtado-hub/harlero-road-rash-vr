@@ -33,7 +33,7 @@ python3 serve.py
 | Pilotar com a mão | **mão esquerda**: segure o **GRIP** (em qualquer lugar) e gire o controle, mova a mão pro lado ou empurre/puxe |
 | Pilotar com a cabeça | **incline a cabeça / o corpo** pro lado (tombar a cabeça também vira) |
 | Pilotar (alternativo) | analógico ← → |
-| **Acelerar** | segurando o GRIP esquerdo, **gire o punho pra trás** (bico do controle pra cima), como numa moto de verdade. Pra frente freia. Ou use o **gatilho esquerdo** |
+| **Acelerar** | **gatilho esquerdo** (analógico: quanto mais aperta, mais rápido, até ~300 km/h; descendo ladeira passa disso) |
 | Acelerar / frear (alternativo) | analógico ↑ / ↓ |
 | Buzina | **X** |
 | Recentralizar | segure **Y** |
@@ -41,7 +41,7 @@ python3 serve.py
 
 Sem menus: **cada punk derrubado recupera um pouco de vida**. No fim de cada onda, um **caminhão de entregas da 66 EXPRESS** passa desgovernado costurando a pista, derruba uma encomenda (caixa de papelão com fita e etiqueta, ou engradado de madeira) e a arma nova voa direto pra sua mão. Logo depois aparecem **3 portais de habilidade** atravessando a estrada (ATAQUE à esquerda, EFEITO no meio, DEFESA à direita): é só passar de moto pelo que você quer. Sem fazer nada, você pega o do meio.
 
-**Acelerar vale a pena**: os pontos de cada abate são multiplicados pela velocidade (até x1,5 no talo), mas o trânsito e os obstáculos chegam mais rápido. Ladeira abaixo a moto embala sozinha.
+**Acelerar vale a pena**: os pontos de cada abate são multiplicados pela velocidade (até x2 no talo), mas o trânsito e os obstáculos chegam mais rápido. Ladeira abaixo a moto embala sozinha, e as **rampas** fazem a moto voar (quanto mais rápido, mais alto; voo longo dá pontos).
 
 **PC (para testar sem o headset)**: mouse mira e atira (clique no jogo pra prender o mouse; se o navegador não deixar, a mira segue o cursor), **A/D** pilota, **W/S** (ou Shift) acelera/freia, **1-9** ou rodinha troca a arma, **Espaço** buzina, **M** liga/desliga a música.
 
@@ -52,12 +52,14 @@ Para testar só no PC também dá pra usar `python3 serve.py --http` e abrir `ht
 - **Trechos especiais na estrada**:
   - **Túnel 66**: boca de concreto cavada numa montanha de rocha, luminárias de sódio no teto, o mundo escurece lá dentro e o motor ecoa.
   - **Ponte do Desfiladeiro**: ponte em arco de aço enferrujado a 80 m de altura sobre um rio, com guarda-corpo baixo e **rajadas de vento** que empurram a moto.
-  - **Descidas fortes e subidas leves**: dá pra ver a estrada despencando lá na frente.
+  - **Descidas absurdas**: trechos de quase 1 km despencando mais de 100 m, com uma **rampa de largada** no topo pra você voar por cima da descida.
+  - **Rampas** amarelas e pretas no meio da pista (às vezes numa faixa só, às vezes na estrada inteira), muitas vezes com a pista caindo logo depois.
+  - Descidas fortes e subidas leves no resto do caminho.
   - Cada região tem seu tempero (o Grand Canyon tem mais pontes, a Redwood e Chicago mais túneis, o Death Valley mais ladeiras).
 - **Viagem arcade pelos EUA (estilo Cruis'n USA)**: estrada procedural com curvas e morros de verdade (dá pra ver a pista subindo e descendo lá na frente; o céu gira quando você faz a curva) e **uma região nova a cada onda**: Arizona/Rota 66 → Grand Canyon (corredor de paredões) → Death Valley (sal branco) → Floresta de Redwood (sequoias gigantes) → Golden Gate (ponte suspensa sobre o mar, com o chefão) → Fazendas de Iowa (milharal, silos, moinhos) → Chicago (arranha-céus) → Washington D.C. (obelisco, Capitólio, cerejeiras) e recomeça.
 - **Trânsito**: carros e picapes mais lentos na pista e outros te ultrapassando buzinando. Bater dói, e os punks também se arrebentam neles.
 - **Ondas** com dificuldade crescente e um tipo de inimigo novo por onda. **Chefão na Golden Gate (onda 5) e o grande final em Washington (onda 8)**. Depois a viagem recomeça mais difícil, com chefão a cada 4 ondas.
-- **7 tipos de inimigos + chefão**:
+- **10 tipos de inimigos + chefão** (um tipo novo quase toda onda):
   - **Punk**: moicano e pistola. O básico.
   - **Correntão**: brutamontes com taco cravejado que encosta do seu lado e tenta te jogar pra fora da pista.
   - **Tocha**: arremessa molotovs que viram poças de fogo na pista. Dá pra estourar o molotov no ar.
@@ -65,14 +67,18 @@ Para testar só no PC também dá pra usar `python3 serve.py --http` e abrir `ht
   - **Dupla Sidecar**: piloto + atirador de submetralhadora no sidecar.
   - **Brutamontes**: chopper gigante, colete blindado (mire na cabeça) e escopeta.
   - **Caveira**: sniper com mira laser vermelha. Quando o laser pisca, desvie!
-  - **Chefão**: picape monstro com metralhadora giratória, foguetes teleguiados (dá pra derrubar no tiro), barris jogados na pista e reforços. Os tanques de combustível vermelhos são pontos fracos.
+  - **Autogiro**: punk voando por cima da estrada, atirando de cima e soltando bombas na sua faixa (dá pra estourar a bomba no ar).
+  - **Escudeiro**: escudo de choque na frente do peito. Mire na cabeça.
+  - **Muscle Car**: conversível com chamas no capô, um atirador em pé no banco de trás e trombada que dói.
+  - **Chefão**: picape monstro com metralhadora giratória, foguetes, barris, **trombada** (ela recua até você e joga pro seu lado), **chuva de molotov** (sempre sobra uma faixa livre) e reforços. Abaixo de 50% de vida ele fica **FURIOSO**: ataca mais rápido e solta um bombardeio de 9 foguetes. Os tanques de combustível vermelhos são pontos fracos.
 - **9 armas com munição infinita**, uma nova por onda: Escopeta Cano Duplo → Magnum .50 dourada (perfura) → Metralhadora → Bazuca → Escopeta Automática → Mini-Gatling → **Foguetes Teleguiados** (rajada de 3 mísseis que perseguem os punks) → **Flying V Laser** (uma guitarra que solta um feixe contínuo) → **Bobina Tesla** (raio que salta de punk em punk em cascata).
 - **Habilidades estilo Archero** (a mesma lógica do Chicken Rancher), que mudam o tiro de forma visível e viram uma build:
   - Ataque: **Bala Dupla** e **Tiro em Leque** (valem pra TODAS as armas, até o laser e a tesla), Calibre Grosso, Gatilho Nervoso, Olho de Águia (crítico), Sangue Quente.
   - Efeito: Ricochete, Bala Incendiária, Bala Congelante, Bala Elétrica, Munição Explosiva, Bala Perfurante, Mira Magnética.
-  - Defesa: **Corvo Atirador** (um corvo de bandana voa do seu lado e atira sozinho), Escudo Cromado, Jaqueta de Couro, Coração V8, Vampiro do Asfalto, Sorte Grande, Combo Mestre e o Pit Stop quando a vida está baixa.
+  - Defesa: **Corvo Atirador** (de tempos em tempos um corvo de bandana vem ajudar por 8 segundos), Escudo Cromado, Jaqueta de Couro, Coração V8, Vampiro do Asfalto, Sorte Grande, Combo Mestre e o Pit Stop quando a vida está baixa.
   - Regras: a 1ª escolha sempre tem um ataque épico, chefão dá 2 rodadas de portais e às vezes aparece algo que você já tem pra subir de nível.
-- **Power-ups** que caem dos punks (atire na caixa ou passe por cima): ⭐ Bala de Ouro (dano x3), 💣 Bala Explosiva, ⏳ Câmera Lenta (punks e balas a 35%), ❤️ Vida e 🎸 Fúria do Rock.
+- **Power-ups** que caem dos punks (atire na caixa ou passe por cima): ⭐ Bala de Ouro (dano x3), 💣 Bala Explosiva, ⏳ Câmera Lenta (punks e balas a 35%), 🐦 Corvo de Aluguel (8 s), ❤️ Vida e 🎸 Fúria do Rock.
+- **Difícil de verdade**: cada punk derrubado cura só um pouquinho, as ondas vêm cheias e os inimigos batem forte.
 - **Armas com a sensação do Chicken Rancher**: balas de verdade voando (60 a 120 m/s, colisão por segmento), espalhamento, coice curto, vibração e sons copiados do rancho. A gatling gira os 6 canos e atira na hora, sem aquecer.
 - **Caminhão desgovernado** entre as ondas, que derruba a encomenda com a arma nova (com câmera lenta quando ela salta).
 - **Pista viva**: barris explosivos (atire neles perto dos punks!), cones e trânsito. **Carros explodem depois de alguns tiros** (e levam os punks do lado junto, em reação em cadeia).

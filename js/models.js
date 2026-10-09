@@ -50,7 +50,62 @@ export function wheelMesh(r, w) {
 }
 
 // ---------------------------------------------------------------- moto inimiga
+// autogiro punk: voa por cima da estrada jogando bombas
+function gyroBody(color) {
+  const b = new Builder();
+  b.sph(0.42, color, 0, 0.55, -0.15, { sx: 0.85, sy: 0.7, sz: 1.5 }, 10, 8);
+  b.box(0.5, 0.08, 0.5, C.black, 0, 0.78, 0.15);
+  b.bar([0, 0.75, 0.45], [0, 0.95, 1.9], 0.09, C.black);
+  b.box(0.06, 0.55, 0.45, color, 0, 1.15, 1.85);
+  b.box(0.9, 0.05, 0.3, color, 0, 0.95, 1.85);
+  b.bar([0, 0.85, 0.05], [0, 1.85, 0.05], 0.08, C.chrome, true);
+  b.cyl(0.18, 0.2, 0.28, 10, C.dchrome, 0, 0.75, 0.62, PI / 2, 0, 0);
+  for (let i = 0; i < 3; i++) b.box(0.06, 0.6, 0.03, 0x222222, 0, 0.75, 0.8, 0, 0, (i * PI) / 3);
+  for (const s of [-1, 1]) {
+    b.bar([s * 0.38, 0.05, -0.7], [s * 0.38, 0.05, 0.6], 0.05, C.chrome, true);
+    b.bar([s * 0.38, 0.05, -0.3], [s * 0.2, 0.4, -0.25], 0.04, C.chrome, true);
+    b.bar([s * 0.38, 0.05, 0.3], [s * 0.2, 0.4, 0.25], 0.04, C.chrome, true);
+  }
+  b.box(0.12, 0.05, 0.03, 0xff2020, 0, 1.0, 2.1, 0, 0, 0, { glow: true });
+  b.sph(0.06, 0xff3030, 0, 1.45, 1.9, { glow: true }, 5, 4);
+  const rb = new Builder();
+  rb.box(5.0, 0.03, 0.22, 0x2a2a2a, 0, 0, 0);
+  rb.box(0.22, 0.03, 5.0, 0x2a2a2a, 0, 0, 0);
+  rb.cyl(0.12, 0.12, 0.12, 8, C.chrome, 0, 0, 0);
+  const rotor = rb.build();
+  rotor.position.set(0, 1.9, 0.05);
+  return { body: b.build(), fz: -0.6, rz: 0.6, wr: 0.3, rotor, noWheels: true };
+}
+
+// muscle car conversível com chamas no capô: motorista + atirador em pé no banco
+function muscleBody(color) {
+  const b = new Builder();
+  b.box(2.0, 0.55, 4.7, color, 0, 0.62, 0);
+  b.box(1.96, 0.25, 1.6, color, 0, 0.98, -1.45);
+  b.box(1.96, 0.22, 1.2, color, 0, 0.98, 1.7);
+  b.box(0.7, 0.28, 0.9, C.dchrome, 0, 1.2, -1.5); // tomada de ar
+  for (let i = 0; i < 5; i++) b.box(0.1 + i * 0.03, 0.02, 0.5 - i * 0.07, i % 2 ? 0xffd21e : 0xff5a00, (i - 2) * 0.32, 1.115, -1.95 + i * 0.05, 0, (i - 2) * 0.2, 0);
+  b.box(1.7, 0.5, 0.06, 0x203040, 0, 1.32, -0.62, -0.45, 0, 0); // para-brisa
+  b.box(1.8, 0.08, 0.08, C.chrome, 0, 1.56, -0.5);
+  b.box(1.5, 0.35, 0.6, C.black, 0, 1.05, 0.55); // banco de trás
+  b.box(2.1, 0.22, 0.25, C.chrome, 0, 0.48, -2.4);
+  b.box(2.1, 0.22, 0.25, C.chrome, 0, 0.48, 2.4);
+  b.box(1.4, 0.3, 0.05, 0x333333, 0, 0.72, -2.37);
+  for (const s of [-1, 1]) {
+    b.cyl(0.07, 0.09, 1.6, 8, C.chrome, s * 1.06, 0.38, 0.3, PI / 2, 0, 0);
+    b.box(0.32, 0.14, 0.05, 0xfff2b0, s * 0.7, 0.75, -2.36, 0, 0, 0, { glow: true });
+    b.box(0.32, 0.12, 0.05, 0xff2020, s * 0.7, 0.8, 2.36, 0, 0, 0, { glow: true });
+    for (const z of [-1.45, 1.45]) {
+      b.cyl(z > 0 ? 0.46 : 0.4, z > 0 ? 0.46 : 0.4, z > 0 ? 0.42 : 0.32, 12, C.tire, s * 0.98, z > 0 ? 0.46 : 0.4, z, 0, 0, PI / 2);
+      b.cyl(0.2, 0.2, 0.36, 8, C.chrome, s * 0.98, z > 0 ? 0.46 : 0.4, z, 0, 0, PI / 2);
+    }
+  }
+  return { body: b.build(), fz: -1.45, rz: 1.45, wr: 0.4, noWheels: true };
+}
+
 export function enemyBike(kind, color) {
+  if (kind === 'gyro') return gyroBody(color);
+  if (kind === 'muscle') return muscleBody(color);
   const b = new Builder();
   const ch = kind === 'chopper';
   const dirt = kind === 'dirt';
@@ -257,6 +312,12 @@ export function rider(o) {
   };
   barArm(-1);
   if (!o.weapon) barArm(1);
+  if (o.shield) {
+    // escudo de choque no braço esquerdo: bala no peito faz "tink"
+    b.box(0.56, 0.78, 0.05, 0x7a8a9a, -0.08, 1.2 - PY, -0.36 - PZ, -0.15, 0.15, 0);
+    b.box(0.5, 0.1, 0.06, 0x1a1a1a, -0.08, 1.38 - PY, -0.39 - PZ, -0.15, 0.15, 0);
+    b.box(0.4, 0.05, 0.06, 0xff3030, -0.08, 0.98 - PY, -0.33 - PZ, -0.15, 0.15, 0, { glow: true });
+  }
   const body = b.build();
   grp.add(body);
 

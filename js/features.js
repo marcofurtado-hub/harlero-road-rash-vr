@@ -3,7 +3,7 @@
 // junto com a estrada. Cada tipo tem uma malha só, reaproveitada a cada aparição.
 import * as THREE from 'three';
 import { G, rand, clamp, damp, chance } from './ctx.js';
-import { Builder, mergeGeos } from './builder.js';
+import { Builder, mergeGeos, MAT } from './builder.js';
 import { curveMaterial, TRACK, TRACK_STATE, FEAT_LEN } from './curve.js';
 import { canvasTex, FW, FB, fitFont, strokeText } from './text.js';
 
@@ -241,6 +241,28 @@ function buildBridge() {
   return { grp, L };
 }
 
+// ------------------------------------------------------------------ RAMPA (pra voar)
+const RAMP_L = 8;
+const RAMP_H = 1.9;
+function buildRampGeo(w) {
+  const b = new Builder();
+  const a = Math.atan2(RAMP_H, RAMP_L);
+  const seg = Math.hypot(RAMP_H, RAMP_L) / 8;
+  for (let i = 0; i < 8; i++) {
+    const zc = -(i + 0.5) * (RAMP_L / 8);
+    const yc = (i + 0.5) * (RAMP_H / 8);
+    b.box(w, 0.14, seg + 0.02, i % 2 ? 0x1a1a1a : 0xffc820, 0, yc - 0.06, zc, a, 0, 0);
+  }
+  // laterais e pernas de aço
+  for (const s of [-1, 1]) {
+    b.bar([s * (w / 2 + 0.08), 0.02, 0], [s * (w / 2 + 0.08), RAMP_H + 0.05, -RAMP_L], 0.16, 0xff5a1a, false, { glow: true });
+    for (const z of [-3, -5.5, -7.8]) b.box(0.18, (RAMP_H * -z) / RAMP_L, 0.18, 0x666a70, s * (w / 2 - 0.2), (RAMP_H * -z) / RAMP_L / 2, z);
+  }
+  b.box(w, RAMP_H, 0.16, 0x55585e, 0, RAMP_H / 2, -RAMP_L - 0.08);
+  b.box(w + 0.3, 0.12, 0.3, 0xffffff, 0, RAMP_H + 0.02, -RAMP_L + 0.1, 0, 0, 0, { glow: true });
+  return { lit: b.geometry('lit'), glow: b.geometry('glow') };
+}
+
 // cor da rocha da montanha em cada fase
 const ROCK = { arizona: 0xb06a40, canyon: 0xa8502a, deathvalley: 0xb8a080, redwood: 0x6a6a58, goldengate: 0x7a7a70, iowa: 0x7a8a50, chicago: 0x8a8a8a, dc: 0x8a8a84 };
 
@@ -250,6 +272,10 @@ export class Features {
     this.bridge = buildBridge();
     scene.add(this.tunnel.grp, this.bridge.grp);
     this.gustT = 3;
+    this.scene = scene;
+    this.rampGeo = { narrow: buildRampGeo(6.5), wide: buildRampGeo(18) };
+    this.ramps = new Map(); // trecho -> malha
+    this.curRamp = null;
     this.rock = new THREE.Color(ROCK.arizona);
     this.tunnel.rockMat.color.copy(this.rock);
   }
@@ -271,9 +297,43 @@ export class Features {
     if (best) it.obj.grp.position.set(0, 0, -(best.s0 - dist));
   }
 
+  updateRamps(dist) {
+    const P = G.player;
+    for (const f of TRACK.features) {
+      if (f.kind !== 'ramp') continue;
+      const d = f.s0 - dist;
+      let m = this.ramps.get(f);
+      if (!m && d < 400 && d > -30) {
+        const g = f.w > 10 ? this.rampGeo.wide : this.rampGeo.narrow;
+        m = new THREE.Group();
+        m.add(new THREE.Mesh(g.lit, MAT.lit), new THREE.Mesh(g.glow, MAT.glow));
+        m.traverse((o) => (o.frustumCulled = false));
+        this.scene.add(m);
+        this.ramps.set(f, m);
+      }
+      if (m) m.position.set(f.x, 0, -d);
+    }
+    for (const [f, m] of this.ramps) {
+      if (f.s1 < dist - 40 || !TRACK.features.includes(f)) {
+        this.scene.remove(m);
+        this.ramps.delete(f);
+      }
+    }
+    // a moto sobe a rampa e decola no topo
+    const f = TRACK.rampAt(dist);
+    if (f && Math.abs(P.x - f.x) < f.w / 2 + 0.3 && !P.air) {
+      P.onRamp((RAMP_H * (dist - f.s0)) / RAMP_L);
+      this.curRamp = f;
+    } else if (this.curRamp) {
+      if (dist > this.curRamp.s1 && !P.air) P.launch(this.curRamp.w > 10 ? 1.2 : 1);
+      this.curRamp = null;
+    }
+  }
+
   update(dt, dist) {
     this.place({ kind: 'tunnel', obj: this.tunnel }, dist);
     this.place({ kind: 'bridge', obj: this.bridge }, dist);
+    this.updateRamps(dist);
     if (this.rockTarget) this.tunnel.rockMat.color.lerp(this.rockTarget, 1 - Math.exp(-0.5 * dt));
     const P = G.player;
     // vento cruzado na ponte: rajadas que empurram a moto (e o motor ecoa dentro do túnel)

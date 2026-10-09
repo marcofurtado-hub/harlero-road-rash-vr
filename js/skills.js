@@ -25,11 +25,11 @@ export const SKILLS = [
   { id: 'boom', cat: 'fx', rar: 'epic', icon: '🧨', name: 'Munição Explosiva', desc: 'acertos causam mini-explosões', max: 2 },
   { id: 'big', cat: 'fx', rar: 'common', icon: '🔩', name: 'Bala Grossa', desc: 'balas maiores e mais rápidas', max: 3 },
   // DEFESA
-  { id: 'crow', cat: 'def', rar: 'epic', icon: '🐦', name: 'Corvo Atirador', desc: 'um corvo voa do seu lado e atira sozinho', max: 2 },
+  { id: 'crow', cat: 'def', rar: 'epic', icon: '🐦', name: 'Corvo Atirador', desc: 'de tempos em tempos um corvo vem ajudar por 8 s', max: 2 },
   { id: 'shield', cat: 'def', rar: 'rare', icon: '🛡️', name: 'Escudo Cromado', desc: 'bloqueia 1 golpe e recarrega', max: 2 },
   { id: 'jacket', cat: 'def', rar: 'rare', icon: '🧥', name: 'Jaqueta de Couro', desc: '-20% de dano recebido', max: 2 },
   { id: 'heart', cat: 'def', rar: 'common', icon: '❤️', name: 'Coração V8', desc: '+25 de vida máxima e cura 25', max: 4 },
-  { id: 'leech', cat: 'def', rar: 'common', icon: '🦇', name: 'Vampiro do Asfalto', desc: '+3 de vida a cada punk derrubado', max: 3 },
+  { id: 'leech', cat: 'def', rar: 'common', icon: '🦇', name: 'Vampiro do Asfalto', desc: '+2 de vida a cada punk derrubado', max: 3 },
   { id: 'luck', cat: 'def', rar: 'common', icon: '🍀', name: 'Sorte Grande', desc: '+50% de chance de power-up', max: 3 },
   { id: 'combo', cat: 'def', rar: 'common', icon: '⏱️', name: 'Combo Mestre', desc: '+1.5 s de janela de combo', max: 3 },
 ];

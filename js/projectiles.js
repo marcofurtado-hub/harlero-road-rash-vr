@@ -176,6 +176,21 @@ export class Projectiles {
     G.audio.play('whoosh', from);
   }
 
+  // bomba do autogiro: cai em arco e explode no chão (dá pra estourar no ar)
+  bomb(from, target, T = 1.05) {
+    target = toWorld(target.clone());
+    const mesh = simpleMesh((b) => {
+      b.sph(0.16, 0x1a1a1a, 0, 0, 0, null, 8, 6);
+      b.box(0.05, 0.08, 0.05, 0x444444, 0, 0.17, 0);
+      b.sph(0.05, 0xff4020, 0, 0.23, 0, { glow: true }, 5, 4);
+    });
+    mesh.position.copy(from);
+    this.scene.add(mesh);
+    const vel = new THREE.Vector3((target.x - from.x) / T, (target.y - from.y) / T + 0.5 * GRAV * T, (target.z - from.z) / T);
+    this.things.push({ kind: 'bomb', mesh, vel, age: 0, r: 0.35, spin: new THREE.Vector3(rand(-5, 5), 0, rand(-5, 5)) });
+    G.audio.play('whoosh', from);
+  }
+
   rocket(from, dir, dmg) {
     const mesh = simpleMesh((b) => {
       b.cyl(0.07, 0.07, 0.6, 8, 0x5a5f4a, 0, 0, 0, Math.PI / 2, 0, 0);
@@ -259,6 +274,9 @@ export class Projectiles {
         const fl = fromWorld(p.clone());
         G.hazards.fire(fl.x, fl.z);
       }
+    } else if (t.kind === 'bomb') {
+      G.explode(p, 4, 60, { hurtPlayer: true, playerDmg: shot ? 8 : 20 });
+      if (shot) G.fx.text('BOMBA ABATIDA!', _v.copy(p).add(_w.set(0, 0.6, 0)), '#ffd21e', 0.45);
     } else if (t.kind === 'rocket') {
       G.explode(p, 3.5, shot ? 60 : 0, { hurtPlayer: !shot, playerDmg: t.dmg });
       if (shot) G.fx.text('BOOM!', _v.copy(p).add(_w.set(0, 0.6, 0)), '#ffd21e', 0.45);
@@ -306,7 +324,15 @@ export class Projectiles {
         t.age += dt;
         const p = t.mesh.position;
         _w.copy(p);
-        if (t.kind === 'molotov') {
+        if (t.kind === 'bomb') {
+          t.vel.y -= GRAV * dt;
+          p.addScaledVector(t.vel, dt);
+          t.mesh.rotation.x += t.spin.x * dt;
+          t.mesh.rotation.z += t.spin.z * dt;
+          if (Math.random() < 0.5) G.fx.burst('spark', p, 1, { speed: 0.5, size: 0.06, life: 0.2, anchor: 0.3 });
+          if (P.hitSegment(_w, p, 0.3)) this.burst(t, false);
+          else if (groundHeight(p) <= 0.15) this.burst(t, false);
+        } else if (t.kind === 'molotov') {
           t.vel.y -= GRAV * dt;
           p.addScaledVector(t.vel, dt);
           t.mesh.rotation.x += t.spin.x * dt;

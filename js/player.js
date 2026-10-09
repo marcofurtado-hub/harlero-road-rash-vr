@@ -13,13 +13,11 @@ const TWIST_FULL = 0.3; // giro do controle esquerdo (rad, ~17°)
 const SLIDE_FULL = 0.14; // mão esquerda pro lado / frente-trás (m)
 const LEAN_FULL = 0.14; // cabeça inclinada pro lado (m)
 const ROLL_FULL = 0.3; // cabeça tombada (rad, ~17°)
-// acelerador: girar o punho na manopla (como numa moto de verdade)
-const THR_DEAD = 0.07; // rad (~4°)
-const THR_FULL = 0.3; // rad além da zona morta (~17°)
 // velocidades (m/s): cruzeiro, acelerador no talo, freio
-const V_CRUISE = 30;
-const V_MAX = 52;
-const V_BRAKE = 15;
+const V_CRUISE = 34;
+const V_MAX = 84; // gatilho esquerdo no talo: ~300 km/h
+const V_BRAKE = 16;
+const GRAV = 24; // gravidade dos pulos (alta = arcade, pousa rápido)
 const dz = (v, z) => (Math.abs(v) < z ? 0 : v - Math.sign(v) * z);
 const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const _v = new THREE.Vector3();
@@ -186,6 +184,10 @@ export class Player {
     this.barThr = 0;
     this.slipT = 0;
     this.boostT = 0;
+    this.jumpY = 0;
+    this.vy = 0;
+    this.air = false;
+    this.rampY = 0;
     this.hp = this.stats.maxHp;
     this.hurtFlash = 0;
     this.invulnT = 0;
@@ -369,16 +371,6 @@ export class Player {
     }
     return clamp(s, -1, 1);
   }
-  // girar o punho pra trás (bico do controle pra cima) acelera; pra frente freia
-  barThrottle() {
-    const h = this.hands.find((x) => x.bar);
-    if (!h) return 0;
-    h.controller.getWorldQuaternion(_qa);
-    _qb.copy(h.q0).invert();
-    _qa.multiply(_qb);
-    const p = wrapA(2 * Math.atan2(_qa.x, _qa.w));
-    return clamp(dz(p, THR_DEAD) / THR_FULL, -1, 1);
-  }
   // inclinar a cabeça / o corpo pro lado também pilota
   headSteer(realDt) {
     // mede no pescoço (atrás dos olhos) pra que só virar a cabeça pra olhar não esterce
@@ -469,6 +461,53 @@ export class Player {
     }
     this.slipT = 1.1;
   }
+  // rampa: a moto sobe a rampa (y) e no topo decola
+  onRamp(y) {
+    if (this.air) return;
+    this.rampY = Math.max(this.rampY, y);
+    this.wasOnRamp = true;
+  }
+  launch(extra = 1) {
+    if (this.air) return;
+    this.air = true;
+    this.airT = 0;
+    this.jumpY = this.rampY;
+    this.rampY = 0;
+    this.vy = clamp(this.speed * 0.26 * extra, 9, 22);
+    G.audio.play('boost');
+    this.pulseAll(0.7, 160);
+    G.fx.text('DECOLOU!', _v.set(this.x, 2.6 + this.jumpY, -4), '#ffd21e', 0.55, 0.8);
+  }
+  updateJump(dt) {
+    // a pista embaixo também sobe/desce: numa descida a moto fica mais tempo no ar
+    const h = TRACK_STATE.h || 0;
+    const dh = this.lastH === undefined ? 0 : h - this.lastH;
+    this.lastH = h;
+    if (!this.air) {
+      if (!this.wasOnRamp) this.rampY = damp(this.rampY, 0, 20, dt);
+      this.wasOnRamp = false;
+      return;
+    }
+    this.airT += dt;
+    this.vy -= GRAV * dt;
+    this.jumpY += this.vy * dt - dh;
+    if (this.jumpY <= 0) {
+      // pouso
+      this.jumpY = 0;
+      this.air = false;
+      const t = this.airT;
+      this.speed *= 0.94;
+      this.pulseAll(Math.min(1, 0.4 + t * 0.3), 200);
+      G.audio.play('crash');
+      G.fx.spark(_v.set(this.x, 0.1, -0.6), 26);
+      G.fx.dust(_v.set(this.x, 0.1, 0.3), 12);
+      if (t > 0.8 && G.state !== 'title') {
+        const pts = Math.round(t * 250);
+        G.score += pts;
+        G.fx.text(t > 2.5 ? `VOO ÉPICO! +${pts}` : `POUSOU! +${pts}`, _v.set(this.x, 2.2, -4), '#40e8ff', 0.5, 1);
+      }
+    }
+  }
   // faixa de turbo: empurrão de velocidade por uns segundos
   boost() {
     this.boostT = 2.6;
@@ -499,8 +538,7 @@ export class Player {
     let gas = 0;
     if (G.xr) {
       bar = this.barSteer(realDt);
-      this.barThr = damp(this.barThr, this.barThrottle(), 14, realDt);
-      gas = this.barThr;
+      this.barThr = 0;
       for (const h of this.hands) {
         const gp = h.gp;
         if (!gp) continue;
@@ -517,7 +555,7 @@ export class Player {
         if (t && !h.btnPrev[0]) h.trigPressed = true;
         h.trig = t;
         // gatilho esquerdo = acelerador analógico
-        if (h.side === 'left' && b[0]) gas += b[0].value || 0;
+        if (h.side === 'left' && b[0]) gas = Math.max(gas, b[0].value || 0);
         if (h.side === 'right') {
           if (edge(4)) this.cycle(1); // A: próxima arma
           if (edge(5)) this.cycle(-1); // B: arma anterior
@@ -576,16 +614,17 @@ export class Player {
     }
     const offroad = Math.abs(this.x) > 7.7;
     let target = G.state === 'title' ? 16 : G.state === 'dead' ? 4 : thr >= 0 ? V_CRUISE + thr * (V_MAX - V_CRUISE) : V_CRUISE + thr * (V_CRUISE - V_BRAKE);
-    // ladeira abaixo embala, ladeira acima segura
-    if (G.state !== 'dead') target += clamp(-TRACK_STATE.slope * 34, -6, 9);
+    // ladeira abaixo embala MUITO, ladeira acima segura
+    if (G.state !== 'dead') target += clamp(-TRACK_STATE.slope * 70, -8, 30);
     // turbo da faixa
     if (this.boostT > 0) {
       this.boostT -= dt;
       target += 24 * Math.min(1, this.boostT / 1.2);
     }
+    target = Math.min(target, 105); // teto ~380 km/h
     if (offroad) target = Math.min(target, 24);
     if (this.crashT > 0) this.crashT -= dt;
-    const k = this.crashT > 0 ? 0.5 : this.boostT > 0 ? 3.5 : target > this.speed ? 1.7 : 2.4;
+    const k = this.crashT > 0 ? 0.5 : this.boostT > 0 ? 3.5 : target > this.speed ? (thr > 0.2 ? 1.6 : 0.9) : this.air ? 0.2 : 2.4;
     this.speed = damp(this.speed, target, k, dt);
     G.speed = this.speed;
     if (offroad && Math.random() < 0.3) this.pulseAll(0.15, 20);
@@ -606,10 +645,10 @@ export class Player {
       }
     }
 
-    this.rig.position.x = this.x;
+    this.updateJump(dt);
+    this.rig.position.set(this.x, this.jumpY + this.rampY, 0);
     this.barAngle = damp(this.barAngle, -steer * 0.35, 14, dt);
     this.bike.bars.rotation.y = this.barAngle;
-    this.barGlove.rotation.x = -this.barThr * 0.5; // a luva gira com o acelerador
     this.bike.wheel.rotation.x -= (this.speed * dt) / 0.34;
     this.bike.group.position.y = Math.sin(G.time * 55) * 0.0012 * (this.speed / 30) + (offroad ? Math.sin(G.time * 31) * 0.006 : 0);
     if (Math.random() < 0.25) G.fx.dust(_v.set(this.x + 0.3, 0.05, 1.2), 1);

@@ -25,27 +25,43 @@ export const TYPES = {
     melee: { dmg: 9, every: 1.3 },
   },
   torch: {
-    name: 'Tocha', hp: 65, score: 175, cost: 2, minWave: 3, w: 3, lat: 4, ai: 'thrower', range: [-34, -20],
+    name: 'Tocha', hp: 65, score: 175, cost: 2, minWave: 2, w: 3, lat: 4, ai: 'thrower', range: [-34, -20],
     look: { bike: 'dirt', hair: ['bandana', 'mohawk'], weapon: 'molotov' },
     throwEvery: [2.8, 4.2],
   },
   kamikaze: {
-    name: 'Dinamite', hp: 40, score: 200, cost: 1.5, minWave: 4, w: 2.2, lat: 5.5, ai: 'kamikaze',
+    name: 'Dinamite', hp: 40, score: 200, cost: 1.5, minWave: 3, w: 2.2, lat: 5.5, ai: 'kamikaze',
     look: { bike: 'dirt', hair: ['helmet'], weapon: 'dynamite' },
   },
   sidecar: {
-    name: 'Dupla Sidecar', hp: 190, score: 320, cost: 3, minWave: 5, w: 2.5, lat: 3.5, ai: 'shooter', range: [-20, -7],
+    name: 'Dupla Sidecar', hp: 190, score: 320, cost: 3, minWave: 4, w: 2.5, lat: 3.5, ai: 'shooter', range: [-20, -7],
     look: { bike: 'sidecar', hair: ['mohawk', 'bandana', 'cowboy'], weapon: 'smg', gunner: true },
     fire: { every: [2.3, 3.3], burst: 5, gap: 0.09, speed: 40, dmg: 5, spread: 1.3, sfx: 'enemy' },
   },
   hog: {
-    name: 'Brutamontes', hp: 420, score: 650, cost: 5, minWave: 6, w: 1.6, lat: 3, ai: 'shooter', armor: 0.5, range: [-14, -6],
+    name: 'Brutamontes', hp: 420, score: 650, cost: 5, minWave: 5, w: 1.6, lat: 3, ai: 'shooter', armor: 0.5, range: [-14, -6],
     look: { bike: 'chopper', hair: ['cowboy', 'helmet', 'bald'], weapon: 'shotgun', bulk: 1.45, beard: true, spikes: true },
     fire: { every: [2.4, 3.4], burst: 1, gap: 0, pellets: 7, speed: 32, dmg: 5, spread: 2.2, sfx: 'enemyShotgun' },
   },
   sniper: {
-    name: 'Caveira', hp: 75, score: 350, cost: 3, minWave: 7, w: 1.8, lat: 3, ai: 'sniper', range: [-46, -30],
+    name: 'Caveira', hp: 75, score: 350, cost: 3, minWave: 6, w: 1.8, lat: 3, ai: 'sniper', range: [-46, -30],
     look: { bike: 'standard', hair: ['skull'], weapon: 'rifle' },
+  },
+  gyro: {
+    name: 'Autogiro', hp: 110, score: 300, cost: 2.5, minWave: 3, w: 2.4, lat: 4.5, ai: 'bomber', alt: 5.2, range: [-32, -14],
+    look: { bike: 'gyro', hair: ['helmet', 'mohawk'], weapon: 'pistol', riderPose: 'sit', riderSeat: 0.85 },
+    fire: { every: [2.2, 3.2], burst: 2, gap: 0.15, speed: 34, dmg: 7, spread: 1.2, sfx: 'enemy' },
+    bombEvery: [2.2, 3.4],
+  },
+  shield: {
+    name: 'Escudeiro', hp: 150, score: 280, cost: 2.5, minWave: 4, w: 2.4, lat: 5, ai: 'shooter', armor: 0.15, range: [-18, -8],
+    look: { bike: 'standard', hair: ['helmet', 'bald'], weapon: 'pistol', shield: true, bulk: 1.1 },
+    fire: { every: [1.6, 2.4], burst: 2, gap: 0.2, speed: 36, dmg: 7, spread: 1.0, sfx: 'enemy' },
+  },
+  muscle: {
+    name: 'Muscle Car', hp: 420, score: 550, cost: 4, minWave: 5, w: 1.8, lat: 4, ai: 'shooter', ram: true, range: [-16, -5],
+    look: { bike: 'muscle', hair: ['bandana', 'cowboy', 'mohawk'], weapon: 'smg', gunner: true, riderX: -0.45, riderSeat: 0.6, riderPose: 'sit', gunnerX: 0.45, gunnerSeat: 0.95 },
+    fire: { every: [1.8, 2.6], burst: 6, gap: 0.08, speed: 42, dmg: 6, spread: 1.4, sfx: 'enemy' },
   },
 };
 
@@ -187,9 +203,9 @@ export class Enemy extends Base {
     const T = (this.T = TYPES[type]);
     this.type = type;
     const w = Math.max(1, G.wave);
-    this.maxHp = this.hp = T.hp * (1 + 0.14 * (w - 1));
-    this.dmgMul = 1 + 0.07 * (w - 1);
-    this.acc = Math.max(0.45, 1 - 0.035 * (w - 1));
+    this.maxHp = this.hp = T.hp * (1 + 0.18 * (w - 1));
+    this.dmgMul = 1.35 * (1 + 0.1 * (w - 1));
+    this.acc = Math.max(0.35, 0.85 - 0.04 * (w - 1));
     this.smart = chance(0.7);
     this.build();
     const P = G.player;
@@ -205,6 +221,7 @@ export class Enemy extends Base {
     this.burstLeft = 0;
     this.burstT = 0;
     this.throwT = rand(1.5, 3);
+    this.bombT = rand(1.5, 3);
     this.windT = 0;
     this.meleeT = 0.5;
     this.swingT = 0;
@@ -237,17 +254,22 @@ export class Enemy extends Base {
     this.rw.userData.shared = true;
     this.rw.position.set(0, bike.wr, bike.rz);
     this.root.add(this.fw, this.rw);
+    if (bike.noWheels) this.fw.visible = this.rw.visible = false;
+    if (bike.rotor) {
+      this.rotor = bike.rotor;
+      this.root.add(this.rotor);
+    }
     const k = L.bulk || 1;
     const common = {
       skin: pick(Models.SKINS), jacket: pick(Models.JACKETS), pants: pick(Models.PANTS), patch: color,
       hairColor: pick(Models.NEON), bulk: k, beard: L.beard, spikes: L.spikes,
       barY: L.bike === 'chopper' ? 1.42 : 1.08, beardColor: pick([0x3a2a1a, 0x6a4a2a, 0xaaaaaa, 0x1a1a1a]),
     };
-    this.rider = Models.rider({ ...common, hair: pick(L.hair), weapon: L.gunner ? null : L.weapon });
+    this.rider = Models.rider({ ...common, hair: pick(L.hair), weapon: L.gunner ? null : L.weapon, x: L.riderX || 0, seatY: L.riderSeat, pose: L.riderPose, shield: L.shield });
     this.root.add(this.rider.group);
     this.riders = [this.rider];
     if (L.gunner) {
-      this.gunner = Models.rider({ ...common, skin: pick(Models.SKINS), hair: pick(L.hair), hairColor: pick(Models.NEON), weapon: L.weapon, x: 0.88, seatY: 0.62, pose: 'sit', bulk: 1, beard: false, spikes: false });
+      this.gunner = Models.rider({ ...common, skin: pick(Models.SKINS), hair: pick(L.hair), hairColor: pick(Models.NEON), weapon: L.weapon, x: L.gunnerX ?? 0.88, seatY: L.gunnerSeat ?? 0.62, pose: 'sit', bulk: 1, beard: false, spikes: false });
       this.root.add(this.gunner.group);
       this.riders.push(this.gunner);
     }
@@ -255,13 +277,17 @@ export class Enemy extends Base {
     this.spheres = [
       { obj: this.rider.head, local: new V(0, 0.15, 0), r: 0.17 * k, part: 'head' },
       { obj: this.rider.group, local: new V(0, 0.12, 0.06), r: 0.32 * k, part: 'body' },
-      { obj: this.root, local: new V(0, 0.55, -0.35), r: 0.5, part: 'bike' },
-      { obj: this.root, local: new V(0, 0.55, 0.4), r: 0.5, part: 'bike' },
     ];
+    if (L.bike === 'muscle') for (const z of [-1.5, 0, 1.5]) this.spheres.push({ obj: this.root, local: new V(0, 0.7, z), r: 0.95, part: 'bike' });
+    else if (L.bike === 'gyro') this.spheres.push({ obj: this.root, local: new V(0, 0.6, -0.15), r: 0.7, part: 'bike' });
+    else {
+      this.spheres.push({ obj: this.root, local: new V(0, 0.55, -0.35), r: 0.5, part: 'bike' });
+      this.spheres.push({ obj: this.root, local: new V(0, 0.55, 0.4), r: 0.5, part: 'bike' });
+    }
     if (this.gunner) {
       this.spheres.push({ obj: this.gunner.head, local: new V(0, 0.15, 0), r: 0.17, part: 'head' });
       this.spheres.push({ obj: this.gunner.group, local: new V(0, 0.12, 0.06), r: 0.3, part: 'body' });
-      this.spheres.push({ obj: this.root, local: new V(0.88, 0.55, -0.05), r: 0.45, part: 'bike' });
+      if (L.bike === 'sidecar') this.spheres.push({ obj: this.root, local: new V(0.88, 0.55, -0.05), r: 0.45, part: 'bike' });
     }
     this.sw = this.spheres.map(() => new V());
     this.meshes = collectMeshes(this.root);
@@ -341,12 +367,13 @@ export class Enemy extends Base {
 
     // contato com o jogador
     const dxp = this.x - P.x;
-    if (Math.abs(this.z) < 1.5 && Math.abs(dxp) < 1.05 && this.bumpT <= 0) {
+    if (!P.air && !T.alt && Math.abs(this.z) < 1.5 && Math.abs(dxp) < 1.05 && this.bumpT <= 0) {
       this.bumpT = 0.8;
       const s = dxp >= 0 ? 1 : -1;
       this.vx = s * 6;
-      P.push(-s * (T.ai === 'rammer' ? 7 : 4));
-      P.hurt(T.ai === 'rammer' ? 9 * this.dmgMul : 4, this.root.position);
+      const heavy = T.ai === 'rammer' || T.ram;
+      P.push(-s * (T.ram ? 9 : heavy ? 7 : 4));
+      P.hurt(T.ram ? 14 * this.dmgMul : heavy ? 9 * this.dmgMul : 4, this.root.position);
       G.audio.play('crash', this.root.position);
       G.fx.spark(_v.set((this.x + P.x) / 2, 0.7, 0), 16);
     }
@@ -355,9 +382,15 @@ export class Enemy extends Base {
     const absSpeed = G.speed - this.vz;
     this.fw.rotation.x -= (absSpeed * dt) / this.wr;
     this.rw.rotation.x = this.fw.rotation.x;
-    this.root.position.set(this.x, Math.sin(this.age * 23) * 0.008, this.z);
-    this.root.rotation.set(0, -this.vx * 0.04, -this.vx * 0.05);
-    if (Math.random() < 0.12) G.fx.dust(apparent(_v.set(this.x, 0.1, this.z + 0.9)), 1);
+    if (T.alt) {
+      this.root.position.set(this.x, T.alt + Math.sin(this.age * 1.3) * 0.7, this.z);
+      this.root.rotation.set(-0.12 + this.vz * 0.01, -this.vx * 0.03, -this.vx * 0.09);
+    } else {
+      this.root.position.set(this.x, Math.sin(this.age * 23) * 0.008, this.z);
+      this.root.rotation.set(0, -this.vx * 0.04, -this.vx * 0.05);
+      if (Math.random() < 0.12) G.fx.dust(apparent(_v.set(this.x, 0.1, this.z + 0.9)), 1);
+    }
+    if (this.rotor) this.rotor.rotation.y += dt * 28;
     this.root.updateMatrixWorld(true);
     this.look();
     this.updateSpheres();
@@ -431,6 +464,19 @@ export class Enemy extends Base {
     }
     G.fx.muzzle(from, _v.copy(tgt).sub(from).normalize());
     G.audio.gun(F.sfx, from);
+  }
+
+  // autogiro: atira de cima e solta bombas na sua faixa
+  ai_bomber(dt) {
+    this.ai_shooter(dt);
+    const P = G.player;
+    this.bombT -= dt;
+    if (this.bombT <= 0 && !this.entering && this.z < -5 && this.z > -40) {
+      this.bombT = rand(this.T.bombEvery[0], this.T.bombEvery[1]) / G.aggro;
+      const from = apparent(new V(this.x, this.root.position.y - 0.2, this.z));
+      const land = new V(clamp(P.x + P.vx * 0.9 + rand(-1.4, 1.4), -7.5, 7.5), 0, -rand(3, 9));
+      G.proj.bomb(from, land, 1.05);
+    }
   }
 
   ai_rammer(dt) {
@@ -610,8 +656,16 @@ export class Enemy extends Base {
     this.z += this.vz * dt;
     this.x += this.vx * dt;
     this.vx = damp(this.vx, 0, 1, dt);
-    this.root.rotation.z = clamp(this.root.rotation.z + this.av * dt, -1.45, 1.45);
-    this.root.position.set(this.x, 0, this.z);
+    let y = 0;
+    if (this.T.alt) {
+      this.fallY = Math.max(0, (this.fallY ?? this.root.position.y) - dt * (3 + this.deathT * 14));
+      y = this.fallY;
+      this.root.rotation.y += dt * 6;
+      if (this.rotor) this.rotor.rotation.y += dt * 10;
+      if (Math.random() < 0.6) G.fx.smoke(apparent(_v.set(this.x, y + 0.8, this.z)), 1, 0.6);
+      if (y > 0) this.boomAt = this.deathT + 0.01;
+    } else this.root.rotation.z = clamp(this.root.rotation.z + this.av * dt, -1.45, 1.45);
+    this.root.position.set(this.x, y, this.z);
     if (!this.boomed && this.deathT > this.boomAt) {
       this.boomed = true;
       G.explode(apparent(new V(this.x, 0.7, this.z)), 3.2, 55, { hurtPlayer: true, playerDmg: 8 });
@@ -659,8 +713,8 @@ export class Boss extends Base {
     this.idx = idx;
     this.T = { name: 'CHEFÃO', score: 5000 + idx * 2500 };
     this.name = BOSS_NAMES[idx % BOSS_NAMES.length];
-    this.maxHp = this.hp = 2600 * (1 + 0.6 * idx) * (1 + 0.04 * G.wave);
-    this.dmgMul = 1 + 0.07 * (G.wave - 1);
+    this.maxHp = this.hp = 4400 * (1 + 0.6 * idx) * (1 + 0.05 * G.wave);
+    this.dmgMul = 1.4 * (1 + 0.1 * (G.wave - 1));
     const color = pick([0x7a1010, 0x22252a, 0x4a2a7a, 0x2a5a2a]);
     const m = Models.bossTruck(color);
     this.root = new THREE.Group();
@@ -728,15 +782,22 @@ export class Boss extends Base {
       tx = P.x + (this.x >= P.x ? 4.8 : -4.8);
       if (this.z < -10) this.entering = false;
     }
-    if (Math.abs(this.z) < 7 && Math.abs(this.x - P.x) < 3.5) tx = P.x + (this.x >= P.x ? 4.8 : -4.8);
+    if (Math.abs(this.z) < 7 && Math.abs(this.x - P.x) < 3.5 && this.atk !== 'ram') tx = P.x + (this.x >= P.x ? 4.8 : -4.8);
+    // TROMBADA: o caminhão recua até você e joga pro seu lado
+    if (this.atk === 'ram') {
+      const k = this.atkTime;
+      tz = k < 1 ? -14 : -1.5;
+      tx = k < 1 ? P.x + this.ramSide * 4 : P.x + this.ramSide * 1.2;
+    }
     if (this.fleeing) {
       tz = -240;
       if (this.z < -220) this.remove = true;
     }
     tx = clamp(tx, -6.5, 6.5);
-    this.vx = damp(this.vx, clamp((tx - this.x) * 1.2, -4, 4), 2, dt);
+    const fast = this.atk === 'ram' ? 2.6 : this.enraged ? 1.5 : 1;
+    this.vx = damp(this.vx, clamp((tx - this.x) * 1.2 * fast, -4 * fast, 4 * fast), 2 * fast, dt);
     this.x += this.vx * dt;
-    this.vz = damp(this.vz, clamp((tz - this.z) * 0.6, -10, 10), 1.2, dt);
+    this.vz = damp(this.vz, clamp((tz - this.z) * 0.6 * fast, -10 * fast, 10 * fast), 1.2 * fast, dt);
     this.z += this.vz * dt;
     const absSpeed = G.speed - this.vz;
     this.front.rotation.x -= (absSpeed * dt) / 0.66;
@@ -765,23 +826,42 @@ export class Boss extends Base {
   attacks(dt) {
     const P = G.player;
     if (this.entering || this.fleeing) return;
+    // abaixo de 50%: fica FURIOSO (ataques mais rápidos e o bombardeio de foguetes)
+    if (!this.enraged && this.hp < this.maxHp * 0.5) {
+      this.enraged = true;
+      G.hud.announce('CHEFÃO FURIOSO!', 'agora é sério', '#ff3030', 2);
+      G.audio.play('charge');
+      this.endAttack();
+      this.atkT = 0.6;
+    }
+    if (this.enraged && Math.random() < 0.5) G.fx.fire(apparent(_v.set(this.x + rand(-0.8, 0.8), 2.4, this.z - 1.5)), 1, 0.5, 0.6);
     if (!this.atk) {
       this.atkT -= dt;
       if (this.atkT <= 0) {
-        const opts = ['gatling', 'gatling', 'rockets', 'barrels'];
-        if (G.enemies.aliveCount() < 5) opts.push('summon');
-        this.atk = pick(opts);
+        const opts = ['gatling', 'gatling', 'rockets', 'barrels', 'ram', 'molotovs'];
+        if (this.enraged) opts.push('barrage', 'ram', 'gatling');
+        if (G.enemies.aliveCount() < 6) opts.push('summon');
+        let a = pick(opts);
+        if (a === this.lastAtk && a !== 'gatling') a = pick(opts);
+        this.atk = this.lastAtk = a;
         this.atkTime = 0;
         this.fired = 0;
+        this.ramHit = false;
+        this.ramSide = P.x > this.x ? -1 : 1;
         if (this.atk === 'gatling') G.audio.play('charge', this.root.position);
+        if (this.atk === 'ram') {
+          G.audio.play('horn', this.root.position);
+          G.fx.text('TROMBADA!', apparent(_v.set(this.x, 4, this.z)), '#ff4040', 0.7);
+        }
       }
       return;
     }
     this.atkTime += dt;
     const t = this.atkTime;
+    const rate = this.enraged ? 16 : 11;
     if (this.atk === 'gatling') {
       if (t > 0.5) {
-        const n = Math.floor((t - 0.5) * 11);
+        const n = Math.floor((t - 0.5) * rate);
         _t.copy(P.headW);
         _t.y -= 0.35;
         _t.x += Math.sin(t * 2.6) * 2.2;
@@ -791,42 +871,66 @@ export class Boss extends Base {
           this.root.updateMatrixWorld(true);
           const from = this.gunner.muzzle.getWorldPosition(new V());
           apparent(from);
-          const vel = _t.clone().add(_l.set(rand(-0.4, 0.4), rand(-0.3, 0.3), 0)).sub(from).normalize().multiplyScalar(42);
+          const vel = _t.clone().add(_l.set(rand(-0.4, 0.4), rand(-0.3, 0.3), 0)).sub(from).normalize().multiplyScalar(44);
           G.proj.enemyBullet(from, vel, 4 * this.dmgMul, 0.9);
           G.fx.muzzle(from, vel.clone().normalize());
           G.audio.gun('gatling', from);
         }
       }
-      if (t > 2.9) this.endAttack();
-    } else if (this.atk === 'rockets') {
-      const n = Math.min(4, Math.floor(t / 0.35));
+      if (t > (this.enraged ? 3.6 : 2.9)) this.endAttack();
+    } else if (this.atk === 'rockets' || this.atk === 'barrage') {
+      const max = this.atk === 'barrage' ? 9 : 4;
+      const n = Math.min(max, Math.floor(t / (this.atk === 'barrage' ? 0.18 : 0.35)));
       while (this.fired < n) {
         this.fired++;
         const s = this.fired % 2 ? -1 : 1;
         const from = apparent(new V(this.x + s * 0.7, 2.4, this.z + 2.0));
-        G.proj.rocket(from, new V(s * 0.4, 0.9, 0.5).normalize(), 13 * this.dmgMul);
+        G.proj.rocket(from, new V(s * rand(0.2, 0.6), 0.9, 0.5).normalize(), 13 * this.dmgMul);
         G.audio.play('whoosh', from);
         G.fx.smoke(from, 4, 0.5);
       }
-      if (t > 1.8) this.endAttack();
+      if (t > max * 0.3 + 0.8) this.endAttack();
     } else if (this.atk === 'barrels') {
-      const n = Math.min(3, Math.floor(t / 0.45) + 1);
+      const n = Math.min(this.enraged ? 5 : 3, Math.floor(t / 0.4) + 1);
       while (this.fired < n) {
         this.fired++;
-        G.hazards.spawn('barrel', clamp(this.x + rand(-1.6, 1.6), -7.5, 7.5), this.z + 3.4);
+        G.hazards.spawn('barrel', clamp(this.x + rand(-2.5, 2.5), -7.5, 7.5), this.z + 3.4);
         G.audio.play('crash', this.root.position);
       }
-      if (t > 1.6) this.endAttack();
+      if (t > 2) this.endAttack();
+    } else if (this.atk === 'molotovs') {
+      // chuva de molotov cobrindo as faixas (deixa um buraco pra escapar)
+      if (this.fired === 0 && t > 0.4) {
+        this.fired = 1;
+        const gap = Math.floor(rand(0, 4));
+        [-6, -2, 2, 6].forEach((x, i) => {
+          if (i === gap) return;
+          const from = apparent(new V(this.x, 2.6, this.z + 1));
+          G.proj.molotov(from, new V(x + rand(-0.6, 0.6), 0, -rand(10, 16)), 1.2);
+        });
+      }
+      if (t > 1.8) this.endAttack();
+    } else if (this.atk === 'ram') {
+      if (!this.ramHit && Math.abs(this.z) < 3.2 && Math.abs(this.x - P.x) < 2.3) {
+        this.ramHit = true;
+        P.hurt(20 * this.dmgMul, this.root.position);
+        P.push((P.x >= this.x ? 1 : -1) * 12);
+        P.crash();
+        G.audio.play('crash');
+        G.fx.spark(_v.set((this.x + P.x) / 2, 1, -1), 40);
+      }
+      if (t > 3) this.endAttack();
     } else if (this.atk === 'summon') {
       G.enemies.spawn('punk', { from: 'behind' });
-      G.enemies.spawn(pick(['punk', 'rammer', 'kamikaze']), { from: 'behind' });
+      G.enemies.spawn(pick(['punk', 'rammer', 'kamikaze', 'gyro']), { from: 'behind' });
+      if (this.enraged) G.enemies.spawn(pick(['shield', 'muscle']), { from: 'behind' });
       G.fx.text('REFORÇOS!', apparent(_v.set(this.x, 3.5, this.z)), '#ff4040', 0.8);
       this.endAttack();
     }
   }
   endAttack() {
     this.atk = null;
-    this.atkT = rand(1.4, 2.6) / G.aggro;
+    this.atkT = (rand(1.0, 1.9) / G.aggro) * (this.enraged ? 0.55 : 1);
   }
 
   takeHit(dmg, part, pt, dir) {

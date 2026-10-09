@@ -167,11 +167,11 @@ export class Hud {
       if (big) {
         setFont(g, 20, FB);
         g.fillStyle = '#111';
-        g.fillText(String(i * 10), cx + Math.cos(a) * (R - 44), cy + Math.sin(a) * (R - 44));
+        g.fillText(String(Math.round((i * 200) / 12 / 10) * 10), cx + Math.cos(a) * (R - 44), cy + Math.sin(a) * (R - 44));
       }
     }
     const mph = P.speed * 2.237;
-    const na = a0 + (a1 - a0) * clamp(mph / 120, 0, 1);
+    const na = a0 + (a1 - a0) * clamp(mph / 200, 0, 1);
     g.beginPath();
     g.moveTo(cx, cy);
     g.lineTo(cx + Math.cos(na) * (R - 18), cy + Math.sin(na) * (R - 18));
@@ -220,7 +220,7 @@ export class Hud {
     // combo / multiplicador de velocidade
     setFont(g, 22, FB);
     if (G.combo > 1) strokeText(g, `COMBO x${G.combo}`, x0, 220, '#ff4fd0', null);
-    const sm = 1 + Math.max(0, P.speed - 30) / 44;
+    const sm = 1 + Math.max(0, P.speed - 34) / 48;
     if (sm > 1.05 && G.state !== 'title') {
       g.textAlign = 'right';
       g.fillStyle = '#40e8ff';

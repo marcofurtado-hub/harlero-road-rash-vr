@@ -122,6 +122,21 @@ class TrackGen {
       if (kind === 'tunnel' || kind === 'bridge') {
         len = FEAT_LEN[kind];
         this.features.push({ kind, s0, s1: s0 + len });
+      } else if (kind === 'mega') {
+        // DESCIDA ABSURDA: longa e íngreme, com rampa de largada lá no topo
+        len = 650 + Math.random() * 400;
+        this.features.push({ kind: 'ramp', s0: s0 - 30, s1: s0 - 22, x: 0, w: 18 });
+        this.events.push({ s0, s1: s0 + len, dh: -(95 + Math.random() * 70), drop: true });
+      } else if (kind === 'ramp') {
+        // rampa numa faixa (passe por ela pra voar); às vezes a pista despenca logo depois
+        len = 60;
+        const w = Math.random() < 0.3 ? 18 : 6.5;
+        const x = w > 10 ? 0 : (Math.random() < 0.5 ? -1 : 1) * (1.5 + Math.random() * 3.5);
+        this.features.push({ kind: 'ramp', s0, s1: s0 + 8, x, w });
+        if (Math.random() < 0.6) {
+          this.events.push({ s0: s0 + 12, s1: s0 + 200, dh: -(20 + Math.random() * 18), drop: true });
+          len = 210;
+        }
       } else if (kind === 'descent' || kind === 'climb') {
         len = 230 + Math.random() * 120;
         // descidas fortes, subidas leves
@@ -135,15 +150,25 @@ class TrackGen {
   flatAt(s) {
     let m = 0;
     for (const f of this.features) {
-      if (s < f.s0 - 60 || s > f.s1 + 60) continue;
+      if ((f.kind !== 'tunnel' && f.kind !== 'bridge') || s < f.s0 - 60 || s > f.s1 + 60) continue;
       m = Math.max(m, sstep(f.s0 - 55, f.s0 - 5, s) * (1 - sstep(f.s1 + 5, f.s1 + 55, s)));
     }
     return m;
   }
   baseAt(s) {
     let b = this.baseDone;
-    for (const e of this.events) if (s > e.s0) b += e.dh * ease((s - e.s0) / (e.s1 - e.s0));
+    for (const e of this.events) {
+      if (s <= e.s0) continue;
+      const t = Math.min(1, (s - e.s0) / (e.s1 - e.s0));
+      // "drop": despenca logo na saída da rampa e vai suavizando lá embaixo
+      b += e.dh * (e.drop ? 1 - (1 - t) * (1 - t) : ease(t));
+    }
     return b;
+  }
+  // rampa sob o ponto s (pra moto subir / decolar)
+  rampAt(s) {
+    for (const f of this.features) if (f.kind === 'ramp' && s >= f.s0 && s <= f.s1) return f;
+    return null;
   }
   extend(sMax) {
     while ((this.th.length - 1) * STEP < sMax) {
@@ -211,6 +236,7 @@ export function updateTrack(dist) {
   TRACK.sample(dist, _s0);
   TRACK_STATE.heading = _s0.th;
   TRACK_STATE.dist = dist;
+  TRACK_STATE.h = _s0.h;
   TRACK.sample(dist + 6, _sm);
   const hA = _sm.h;
   TRACK.sample(Math.max(0, dist - 6), _sm);

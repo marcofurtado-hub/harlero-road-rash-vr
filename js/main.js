@@ -57,6 +57,7 @@ class Game {
     G.proj.clear();
     G.truck.clear();
     G.gates.clear();
+    G.crows.clear();
     G.waves.active = false;
     G.pow.gold = G.pow.boom = G.pow.slow = 0;
     G.dropless = 0;
@@ -77,7 +78,7 @@ class Game {
   showTitleCards() {
     const vr = G.xr;
     const how = vr
-      ? ['#PILOTAR', 'Mão esquerda: segure GRIP e gire o controle (ou incline a cabeça)', '#ACELERAR', 'Gire o punho pra trás, como numa moto! (ou gatilho esquerdo)', '#ATIRAR', 'Mão direita: GATILHO • A / B troca arma', '#EXTRAS', 'X buzina • Y recentraliza • clique no analógico: música']
+      ? ['#PILOTAR', 'Mão esquerda: segure GRIP e gire o controle (ou incline a cabeça)', '#ACELERAR', 'GATILHO ESQUERDO: quanto mais aperta, mais rápido (até ~300 km/h)', '#ATIRAR', 'Mão direita: GATILHO • A / B troca arma', '#EXTRAS', 'X buzina • Y recentraliza • clique no analógico: música']
       : ['#MIRAR / ATIRAR', 'Mouse + clique', '#PILOTAR', 'A / D  •  W acelera  S freia', '#ARMAS', '1 a 9 ou rodinha', '#EXTRAS', 'Espaço buzina • M liga/desliga música'];
     G.cards.show([
       { ghost: true, w: 4.2, h: 1.65, cw: 1024, ch: 400, y: 3.35, z: -4.8, draw: drawTitle, face: false },
@@ -203,7 +204,7 @@ class Game {
 }
 
 // multiplicador de pontos pela velocidade (acelerar vale a pena!)
-export const speedMult = () => 1 + Math.max(0, G.speed - 30) / 44;
+export const speedMult = () => 1 + Math.max(0, G.speed - 34) / 48;
 
 // ---------------------------------------------------------------- eventos globais
 G.onKill = (e, info) => {
@@ -216,8 +217,8 @@ G.onKill = (e, info) => {
   let pts = e.T.score * mult * (info.headshot ? 1.5 : 1) * sm;
   G.score += pts;
   // cada punk derrubado devolve um pouco de vida (+ Vampiro do Asfalto)
-  if (!info.boss) P.heal((info.headshot ? 8 : 5) + 3 * P.lvl('leech'));
-  else P.heal(40);
+  if (!info.boss) P.heal((info.headshot ? 4 : 2) + 2 * P.lvl('leech'));
+  else P.heal(25);
   e.center(_v);
   _v.y += 1.2;
   toWorld(_v);
@@ -256,7 +257,7 @@ G.onKill = (e, info) => {
     if (G.dropless >= 16 || chance(base * (1 + 0.5 * P.lvl('luck')))) {
       G.dropless = 0;
       const low = P.hp / P.stats.maxHp;
-      const kind = weightedPick(Object.keys(POW), (k) => ({ gold: 1, boom: 1, slow: 0.8, fury: 0.7, health: low < 0.35 ? 3 : low < 0.6 ? 1.5 : 0.4 })[k]);
+      const kind = weightedPick(Object.keys(POW), (k) => ({ gold: 1, boom: 1, slow: 0.8, fury: 0.7, health: low < 0.35 ? 1.6 : low < 0.6 ? 0.8 : 0.25, crow: 0.6 })[k]);
       G.hazards.drop(kind, e.x, e.z);
     }
   } else G.hazards.drop('gold', e.x, e.z);

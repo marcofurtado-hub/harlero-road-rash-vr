@@ -22,10 +22,10 @@ export class Waves {
     this.active = true;
     this.queue = [];
     this.spawnT = 2.5;
-    G.aggro = 1 + 0.05 * (n - 1);
+    G.aggro = 1 + 0.08 * (n - 1);
     const boss = isBossWave(n);
     const types = Object.keys(TYPES).filter((t) => TYPES[t].minWave <= n);
-    let budget = boss ? 3 + n * 0.8 : 4 + n * 3.2;
+    let budget = boss ? 5 + n * 1.2 : 7 + n * 4.2;
     // tipo novo aparece em destaque na sua primeira onda
     const fresh = types.filter((t) => TYPES[t].minWave === n);
     for (const f of fresh) {
@@ -39,8 +39,8 @@ export class Waves {
     }
     shuffle(this.queue);
     if (boss) this.queue.unshift('BOSS');
-    this.maxC = Math.min(3 + Math.floor(n * 0.6), 10);
-    this.interval = Math.max(0.7, 2.6 - n * 0.14);
+    this.maxC = Math.min(4 + Math.floor(n * 0.8), 14);
+    this.interval = Math.max(0.45, 2.1 - n * 0.16);
     if (boss) {
       const name = BOSS_NAMES[G.enemies.bossCount % BOSS_NAMES.length];
       G.hud.announce(`ONDA ${n}: CHEFÃO!`, `${name} • ${place}`, '#ff3030', 3.5);
@@ -56,7 +56,7 @@ export class Waves {
     const alive = G.enemies.aliveCount();
     if (this.queue.length && this.spawnT <= 0 && alive < this.maxC) {
       const t = this.queue.shift();
-      const from = t === 'kamikaze' || t === 'sniper' || t === 'torch' ? 'ahead' : chance(0.55) ? 'behind' : 'ahead';
+      const from = t === 'kamikaze' || t === 'sniper' || t === 'torch' || t === 'gyro' ? 'ahead' : chance(0.55) ? 'behind' : 'ahead';
       G.enemies.spawn(t, { from });
       if (from === 'behind' && t !== 'BOSS') G.audio.play('whoosh');
       this.spawnT = this.interval * rand(0.7, 1.3);
